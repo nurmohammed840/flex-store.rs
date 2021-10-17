@@ -1,4 +1,3 @@
-use anyhow::Result;
 use std::{fs, io::*};
 
 pub struct Pages<const S: usize> {
@@ -62,16 +61,57 @@ impl<const S: usize> Pages<S> {
     }
 }
 
-#[test]
-fn test_impl_Pages() {
-    let mut pages: Pages<4096> = Pages::open("data.idx").unwrap();
+#[cfg(test)]
+mod test {
+    use super::*;
+    use serial_test::serial;
+    
+    const file: &str = "data.idx";
+    
+    #[test]
+    #[serial]
+    fn create_new_page() {
+        {
+            let mut pages: Pages<4096> = Pages::open(file).unwrap();
+            assert_eq!(pages.create(), 1);
+            assert_eq!(pages.create(), 2);
+        }
+        {
+            let mut pages: Pages<4096> = Pages::open(file).unwrap();
+            assert_eq!(pages.create(), 3);
+        }
+        fs::remove_file(file);
+    }
 
-    let a = pages.create();
-    let b = pages.create();
-    let c = pages.create();
-    println!("{:#?}", a);
-    println!("{:#?}", b);
-    println!("{:#?}", c);
-    fs::remove_file("data.idx");
+    #[test]
+    #[serial]
+    fn read_write_data() {
+        let mut pages: Pages<12> = Pages::open(file).unwrap();
+        let page_on = pages.create();
+        
+        let msg = b"Hello, World";
+        pages.write(page_on, msg);
+        assert_eq!(pages.read(page_on), *msg);
+
+        fs::remove_file(file);
+    }
+
+    #[test]
+    #[serial]
+    fn read_write_metadata() {
+        let msg = b"Hello, World";
+        {
+            let mut pages: Pages<4096> = Pages::open(file).unwrap();
+            let raw_meta = pages.metadata();
+            raw_meta[0..msg.len()].copy_from_slice(msg);
+            pages.sync_metadata();
+        }
+
+        {
+            let mut pages: Pages<4096> = Pages::open(file).unwrap();
+            let raw_meta = pages.metadata();
+            assert_eq!(raw_meta[0..msg.len()], *msg);
+        }
+        fs::remove_file(file);
+    }
 }
-
