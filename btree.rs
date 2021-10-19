@@ -9,7 +9,7 @@ impl BPlusTree {
     pub fn open(filepath: &str) -> Self {
         let mut pages = Pages::open(filepath).unwrap();
         let raw = pages.metadata();
-        let root_id = u16::from_le_bytes([raw[0], raw[1]]);
+        let root_id = u16::from_ne_bytes([raw[0], raw[1]]);
         let mut tree = Self { pages, root_id };
         if root_id == 0 {
             tree.set_root_id(1); // default to 1
@@ -19,18 +19,14 @@ impl BPlusTree {
 
     pub fn set_root_id(&mut self, id: u16) {
         self.root_id = id;
-        self.pages.metadata()[0..2].copy_from_slice(&id.to_le_bytes());
+        self.pages.metadata()[0..2].copy_from_slice(&id.to_ne_bytes());
         self.pages.sync_metadata();
     }
 
     pub fn insert(&mut self, id: u64, value: [u8; 8]) {
         if let Some((id, right_page_no)) = insert(self.root_id, self, id, value) {
-            let mut branch = Branch::new();
-            branch.ids[0] = id;
-            branch.childs[0] = self.root_id;
-            branch.childs[1] = right_page_no;
-            let buf = Node::Branch(branch).to_bytes();
-
+            let root = Branch::create_root(id, self.root_id, right_page_no);
+            let buf = Node::Branch(root).to_bytes();
             let new_page_no = self.pages.create();
             self.set_root_id(new_page_no as u16);
             self.pages.write(new_page_no, &buf);
@@ -51,8 +47,8 @@ fn insert(page_no: u16, this: &mut BPlusTree, id: u64, value: [u8; 8]) -> Option
             };
 
             let mut i = 0;
-            for &ele in banch.ids.clone().iter().filter(|&&a| a != 0) {
-                if id < ele {
+            for &_id in banch.ids.clone().iter().filter(|&&id| id != 0) {
+                if id < _id {
                     handler(i, banch);
                 }
                 i += 1;
@@ -69,8 +65,8 @@ fn insert(page_no: u16, this: &mut BPlusTree, id: u64, value: [u8; 8]) -> Option
                 right.left_child = page_no as u16;
                 left.right_child = new_page_no as u16;
 
-                this.pages.write(new_page_no, &Node::Leaf(right).to_bytes());
                 this.pages.write(page_no as u64, &node.to_bytes());
+                this.pages.write(new_page_no, &Node::Leaf(right).to_bytes());
                 return Some((mid_elem, new_page_no as u16));
             }
             this.pages.write(page_no as u64, &node.to_bytes());
@@ -79,33 +75,40 @@ fn insert(page_no: u16, this: &mut BPlusTree, id: u64, value: [u8; 8]) -> Option
     return None;
 }
 
-#[test]
-#[ignore = "no_reason"]
-fn print_bp_tree() {
-    use std::fs;
+#[cfg(test)]
+mod test {
+    use super::*;
 
-    #[derive(Debug)]
-    enum Log {
-        Branch { child: Vec<Log> },
-        Leaf { ids: u8 },
-    }
+    #[test]
+    #[ignore = "no_reason"]
+    fn print_bp_tree() {
+        use std::fs;
 
-    let mut tree = BPlusTree::open("data.hex");
-
-    fn next(page_no: u16, this: &mut BPlusTree) -> Log {
-        match Node::from_bytes(this.pages.read(page_no as u64)) {
-            Node::Branch(b) => {
-                let mut child = vec![];
-                for i in b.childs {
-                    let node = next(i, this);
-                    child.push(node);
-                }
-                return Log::Branch { child };
-            }
-            Node::Leaf(node) => return Log::Leaf { ids: node.len },
+        #[derive(Debug)]
+        enum Log {
+            Branch { child: Vec<Log> },
+            Leaf { ids: u8 },
         }
-    };
 
-    println!("{:#?}", next(tree.root_id, &mut tree));
-    fs::remove_file("data.hex").unwrap();
+        let mut tree = BPlusTree::open("data.hex");
+
+        fn next(page_no: u16, this: &mut BPlusTree) -> Log {
+            match Node::from_bytes(this.pages.read(page_no as u64)) {
+                Node::Branch(b) => {
+                    let mut child = vec![];
+                    for i in b.childs {
+                        let node = next(i, this);
+                        child.push(node);
+                    }
+                    return Log::Branch { child };
+                }
+                Node::Leaf(node) => return Log::Leaf { ids: node.len },
+            }
+        };
+
+        println!("{:#?}", next(tree.root_id, &mut tree));
+        fs::remove_file("data.hex").unwrap();
+    }
 }
+
+
