@@ -1,8 +1,10 @@
-use crate::utill::swap_slices;
+use crate::utill::{insert_within_slice, swap_slices};
 
+#[repr(C)]
 pub struct Branch {
     pub ids: [u64; 408],
     pub childs: [u16; 409],
+    pub _pad: [u8; 6],
 }
 
 impl Branch {
@@ -18,7 +20,22 @@ impl Branch {
         Self {
             ids: [0; 408],
             childs: [0; 409],
+            _pad: [0; 6],
         }
+    }
+
+    pub fn lookup(&self, id: u64) -> Result<usize, &str> {
+        let mut i: usize = 0;
+        for _id in self.ids.into_iter().filter(|&id| id != 0) {
+            if id == _id {
+                return Err("Duplicate id!");
+            }
+            if id < _id {
+                return Ok(i);
+            }
+            i += 1;
+        }
+        Ok(i)
     }
 
     pub fn is_full(&self) -> bool {
@@ -36,9 +53,9 @@ impl Branch {
         (right, mid)
     }
 
-    pub fn update(&mut self, value: (u64, u16)) {
-        // insert_within_slice(&mut self.ids, mid, page_no);
-        // insert_within_slice(&mut self.childs, p, page_no + 1);
+    pub fn update(&mut self, i: usize, (mid, page_no): (u64, u16)) {
+        insert_within_slice(&mut self.ids, i, mid);
+        insert_within_slice(&mut self.childs, i + 1, page_no);
     }
 }
 

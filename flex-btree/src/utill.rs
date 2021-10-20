@@ -1,3 +1,6 @@
+pub type Results<T> = std::result::Result<T, Box<dyn std::error::Error>>;
+
+
 /// Insert a value on index. move all elemment to right (advance 1).
 pub fn insert_within_slice<T: Copy>(arr: &mut [T], i: usize, value: T) {
     let last_idx = arr.len() - 1;

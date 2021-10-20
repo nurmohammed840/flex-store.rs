@@ -1,16 +1,19 @@
 use crate::utill::swap_slices;
 
+#[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct Entry {
     pub id: u64,
     pub value: [u8; 8],
 }
 
+#[repr(C)]
 pub struct Leaf {
-    pub len: u8,
     pub entrys: [Entry; 255],
     pub left_child: u16,
     pub right_child: u16,
+    pub len: u8,
+    pub _pad: [u8; 3],
 }
 
 impl Leaf {
@@ -20,6 +23,7 @@ impl Leaf {
             entrys: [Default::default(); 255],
             left_child: 0,
             right_child: 0,
+            _pad: [0; 3],
         }
     }
 
@@ -82,7 +86,7 @@ mod test {
 
         assert!(left_ids.starts_with(&ids[1..=127]));
         assert!(right_ids.starts_with(&ids[128..=255]));
-        
+
         assert!(left_ids.ends_with(&[0; 128]));
         assert!(right_ids.ends_with(&[0; 127]));
     }

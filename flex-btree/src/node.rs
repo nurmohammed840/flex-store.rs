@@ -1,7 +1,7 @@
-use std::mem;
-
+use std::mem::transmute;
 use crate::{branch::Branch, leaf::Leaf};
 
+#[repr(C, u64)]
 pub enum Node {
     Leaf(Leaf),
     Branch(Branch),
@@ -9,9 +9,9 @@ pub enum Node {
 
 impl Node {
     pub fn to_bytes(self) -> [u8; 4096] {
-        unsafe { mem::transmute::<Self, [u8; 4096]>(self) }
+        unsafe { transmute::<Self, [u8; 4096]>(self) }
     }
     pub fn from_bytes(bytes: [u8; 4096]) -> Self {
-        unsafe { mem::transmute::<[u8; 4096], Self>(bytes) }
+        unsafe { transmute::<[u8; 4096], Self>(bytes) }
     }
 }
