@@ -1,4 +1,4 @@
-use crate::utill::swap_slices;
+use crate::utill::{insert_within_slice, swap_slices};
 
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
@@ -27,16 +27,18 @@ impl Leaf {
         }
     }
 
+    fn binery_search_by(&self, id: u64) -> Result<usize, usize> {
+        self.entrys[..(self.len as usize)].binary_search_by_key(&id, |e| e.id)
+    }
+
+    /// Duplicate Id is ignored...
+    ///
     /// Note: This funtion will panic, If insetion count is greater than buf size (255)
     pub fn insert_and_sort_entry(&mut self, id: u64, value: [u8; 8]) {
-        let mut pos = self.len as usize;
-        while pos > 0 && self.entrys[pos - 1].id > id {
-            self.entrys[pos] = self.entrys[pos - 1];
-            pos -= 1;
+        if let Err(i) = self.binery_search_by(id) {
+            insert_within_slice(&mut self.entrys, i, Entry { id, value });
+            self.len += 1;
         }
-        self.entrys[pos].id = id;
-        self.entrys[pos].value = value;
-        self.len += 1;
     }
 
     pub fn is_full(&self) -> bool {
@@ -49,10 +51,17 @@ impl Leaf {
         let mid = right.entrys[0].id;
         (right, mid)
     }
+
+    pub fn find_value(&self, id: u64) -> Option<[u8; 8]> {
+        match self.binery_search_by(id) {
+            Ok(i) => Some(self.entrys[i].value),
+            _ => None,
+        }
+    }
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use super::*;
 
     #[test]

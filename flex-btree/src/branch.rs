@@ -8,14 +8,6 @@ pub struct Branch {
 }
 
 impl Branch {
-    pub fn create_root(id: u64, left_child: u16, right_child: u16) -> Self {
-        let mut branch = Branch::new();
-        branch.ids[0] = id;
-        branch.childs[0] = left_child;
-        branch.childs[1] = right_child;
-        branch
-    }
-
     pub fn new() -> Self {
         Self {
             ids: [0; 408],
@@ -24,6 +16,15 @@ impl Branch {
         }
     }
 
+    pub fn create_root(id: u64, left_child: u16, right_child: u16) -> Self {
+        let mut branch = Branch::new();
+        branch.ids[0] = id;
+        branch.childs[0] = left_child;
+        branch.childs[1] = right_child;
+        branch
+    }
+
+    /// -> index
     pub fn lookup(&self, id: u64) -> Result<usize, &str> {
         let mut i: usize = 0;
         for _id in self.ids.into_iter().filter(|&id| id != 0) {
@@ -36,6 +37,11 @@ impl Branch {
             i += 1;
         }
         Ok(i)
+    }
+
+    pub fn update(&mut self, i: usize, (mid, page_no): (u64, u16)) {
+        insert_within_slice(&mut self.ids, i, mid);
+        insert_within_slice(&mut self.childs, i + 1, page_no);
     }
 
     pub fn is_full(&self) -> bool {
@@ -52,16 +58,27 @@ impl Branch {
         self.ids[203] = 0;
         (right, mid)
     }
-
-    pub fn update(&mut self, i: usize, (mid, page_no): (u64, u16)) {
-        insert_within_slice(&mut self.ids, i, mid);
-        insert_within_slice(&mut self.childs, i + 1, page_no);
-    }
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use super::*;
+
+    #[test]
+    fn lookup() {
+        let mut branch = Branch::new();
+        branch.ids[..3].copy_from_slice(&[10, 15, 20]);
+        assert_eq!(branch.lookup(0).unwrap(), 0);
+        assert_eq!(branch.lookup(9).unwrap(), 0);
+        assert_eq!(branch.lookup(11).unwrap(), 1);
+        assert_eq!(branch.lookup(14).unwrap(), 1);
+        assert_eq!(branch.lookup(16).unwrap(), 2);
+        assert_eq!(branch.lookup(19).unwrap(), 2);
+        assert_eq!(branch.lookup(21).unwrap(), 3);
+        assert_eq!(branch.lookup(100).unwrap(), 3);
+        // 10, 15, 20 will yield: Err("Duplicate id!")
+        assert_eq!(branch.lookup(10), Err("Duplicate id!"));
+    }
 
     #[test]
     fn split() {

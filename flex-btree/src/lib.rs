@@ -3,8 +3,9 @@ mod leaf;
 mod node;
 mod utill;
 
-use branch::Branch;
 use flex_page::Pages;
+
+use branch::Branch;
 use node::Node;
 
 use std::io::Result;
@@ -37,29 +38,25 @@ impl BPlusTree {
         Ok(())
     }
 
-    pub fn find(&self, _id: u64) {}
+    pub fn find(&mut self, id: u64) -> Results<Option<[u8; 8]>> {
+        fn find(page_no: u16, pages: &mut Pages<4096>, id: u64) -> Results<Option<[u8; 8]>> {
+            match Node::from_bytes(pages.read(page_no as u64)?) {
+                Node::Branch(b) => find(b.childs[b.lookup(id)?], pages, id),
+                Node::Leaf(leaf) => Ok(leaf.find_value(id)),
+            }
+        }
+        find(self.root_page_no, &mut self.pages, id)
+    }
 
     pub fn insert(&mut self, id: u64, value: [u8; 8]) -> Results<()> {
         if let Some((id, right_page_no)) = insert(self.root_page_no, &mut self.pages, id, value)? {
             let root = Branch::create_root(id, self.root_page_no, right_page_no);
-            let buf = Node::Branch(root).to_bytes();
-            let new_page_no = self.pages.create()?;
-            self.set_root_page(new_page_no as u16)?;
-            self.pages.write(new_page_no, &buf)?;
+            let page_no = self.pages.create()?;
+            self.set_root_page(page_no as u16)?;
+            self.pages.write(page_no, &Node::Branch(root).to_bytes())?;
         };
         Ok(())
     }
-}
-
-fn _find(page_no: u16, pages: &mut Pages<4096>, id: u64) -> Results<()> {
-    match Node::from_bytes(pages.read(page_no as u64)?) {
-        Node::Branch(branch) => {
-            let _i = branch.lookup(id)?;
-            // return handler(i as usize, branch);
-        }
-        Node::Leaf(_) => {}
-    }
-    Ok(())
 }
 
 type InsertResult = Results<Option<(u64, u16)>>;
@@ -70,12 +67,12 @@ fn insert(page_no: u16, pages: &mut Pages<4096>, id: u64, value: [u8; 8]) -> Ins
         Node::Branch(ref mut branch) => {
             let i = branch.lookup(id)?;
             if let Some(value) = insert(branch.childs[i], pages, id, value)? {
-                branch.update(i, value); // rodo
+                branch.update(i, value);
                 if branch.is_full() {
-                    let (right, _mid) = branch.split();
+                    let (right, mid) = branch.split();
                     let page = pages.create()?;
-
                     pages.write(page, &Node::Branch(right).to_bytes())?;
+                    ret = Some((mid, page as u16));
                 }
                 pages.write(page_no as u64, &node.to_bytes())?;
             }
@@ -96,4 +93,20 @@ fn insert(page_no: u16, pages: &mut Pages<4096>, id: u64, value: [u8; 8]) -> Ins
         }
     };
     Ok(ret)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn insertion() -> Results<()> {
+        let mut btree = BPlusTree::open("file.db")?;
+        btree.insert(1, [1; 8])?;
+        println!("{:#?}", btree.find(1)?);
+
+        
+        std::fs::remove_file("file.db")?;
+        Ok(())
+    }
 }
