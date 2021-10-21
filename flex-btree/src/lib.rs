@@ -9,7 +9,6 @@ use branch::Branch;
 use node::Node;
 
 use std::io::Result;
-use utill::Results;
 
 pub struct BPlusTree {
     pages: Pages<4096>,
@@ -38,17 +37,17 @@ impl BPlusTree {
         Ok(())
     }
 
-    pub fn find(&mut self, id: u64) -> Results<Option<[u8; 8]>> {
-        fn find(page_no: u16, pages: &mut Pages<4096>, id: u64) -> Results<Option<[u8; 8]>> {
+    pub fn find(&mut self, id: u64) -> Result<Option<[u8; 8]>> {
+        fn find(page_no: u16, pages: &mut Pages<4096>, id: u64) -> Result<Option<[u8; 8]>> {
             match Node::from_bytes(pages.read(page_no as u64)?) {
-                Node::Branch(b) => find(b.childs[b.lookup(id)?], pages, id),
+                Node::Branch(b) => find(b.childs[b.lookup(id)], pages, id),
                 Node::Leaf(leaf) => Ok(leaf.find_value(id)),
             }
         }
         find(self.root_page_no, &mut self.pages, id)
     }
 
-    pub fn insert(&mut self, id: u64, value: [u8; 8]) -> Results<()> {
+    pub fn insert(&mut self, id: u64, value: [u8; 8]) -> Result<()> {
         if let Some((id, right_page_no)) = insert(self.root_page_no, &mut self.pages, id, value)? {
             let root = Branch::create_root(id, self.root_page_no, right_page_no);
             let page_no = self.pages.create()?;
@@ -59,13 +58,13 @@ impl BPlusTree {
     }
 }
 
-type InsertResult = Results<Option<(u64, u16)>>;
+type InsertResult = Result<Option<(u64, u16)>>;
 fn insert(page_no: u16, pages: &mut Pages<4096>, id: u64, value: [u8; 8]) -> InsertResult {
     let mut node = Node::from_bytes(pages.read(page_no as u64)?);
     let mut ret = None;
     match node {
         Node::Branch(ref mut branch) => {
-            let i = branch.lookup(id)?;
+            let i = branch.lookup(id);
             if let Some(value) = insert(branch.childs[i], pages, id, value)? {
                 branch.update(i, value);
                 if branch.is_full() {
@@ -98,14 +97,12 @@ fn insert(page_no: u16, pages: &mut Pages<4096>, id: u64, value: [u8; 8]) -> Ins
 #[cfg(test)]
 mod tests {
     use super::*;
-
     #[test]
-    fn insertion() -> Results<()> {
+    fn insert_and_find() -> Result<()> {
         let mut btree = BPlusTree::open("file.db")?;
-        btree.insert(1, [1; 8])?;
-        println!("{:#?}", btree.find(1)?);
-
-        
+        let msg = *b"Worked!!";
+        btree.insert(123, msg)?;
+        assert_eq!(btree.find(123)?, Some(msg));
         std::fs::remove_file("file.db")?;
         Ok(())
     }

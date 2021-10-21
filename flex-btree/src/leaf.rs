@@ -47,6 +47,8 @@ impl Leaf {
 
     pub fn split(&mut self) -> (Leaf, u64) {
         let mut right = Leaf::new();
+        self.len = 127;
+        right.len = 128;
         swap_slices(&mut self.entrys[127..], &mut right.entrys);
         let mid = right.entrys[0].id;
         (right, mid)

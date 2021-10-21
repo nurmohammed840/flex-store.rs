@@ -1,4 +1,4 @@
-pub type Results<T> = std::result::Result<T, Box<dyn std::error::Error>>;
+// pub type Results<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
 
 /// Insert a value on index. move all elemment to right (advance 1).

@@ -25,18 +25,15 @@ impl Branch {
     }
 
     /// -> index
-    pub fn lookup(&self, id: u64) -> Result<usize, &str> {
+    pub fn lookup(&self, id: u64) -> usize {
         let mut i: usize = 0;
         for _id in self.ids.into_iter().filter(|&id| id != 0) {
-            if id == _id {
-                return Err("Duplicate id!");
-            }
             if id < _id {
-                return Ok(i);
+                return i;
             }
             i += 1;
         }
-        Ok(i)
+        i
     }
 
     pub fn update(&mut self, i: usize, (mid, page_no): (u64, u16)) {
@@ -68,16 +65,18 @@ mod tests {
     fn lookup() {
         let mut branch = Branch::new();
         branch.ids[..3].copy_from_slice(&[10, 15, 20]);
-        assert_eq!(branch.lookup(0).unwrap(), 0);
-        assert_eq!(branch.lookup(9).unwrap(), 0);
-        assert_eq!(branch.lookup(11).unwrap(), 1);
-        assert_eq!(branch.lookup(14).unwrap(), 1);
-        assert_eq!(branch.lookup(16).unwrap(), 2);
-        assert_eq!(branch.lookup(19).unwrap(), 2);
-        assert_eq!(branch.lookup(21).unwrap(), 3);
-        assert_eq!(branch.lookup(100).unwrap(), 3);
-        // 10, 15, 20 will yield: Err("Duplicate id!")
-        assert_eq!(branch.lookup(10), Err("Duplicate id!"));
+        assert_eq!(branch.lookup(0), 0);
+        assert_eq!(branch.lookup(9), 0);
+        assert_eq!(branch.lookup(11), 1);
+        assert_eq!(branch.lookup(14), 1);
+        assert_eq!(branch.lookup(16), 2);
+        assert_eq!(branch.lookup(19), 2);
+        assert_eq!(branch.lookup(21), 3);
+        assert_eq!(branch.lookup(100), 3);
+
+        assert_eq!(branch.lookup(10), 1);
+        assert_eq!(branch.lookup(15), 2);
+        assert_eq!(branch.lookup(20), 3);
     }
 
     #[test]
