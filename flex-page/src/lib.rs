@@ -2,7 +2,7 @@ use std::{fs, io::*};
 
 pub struct Pages<const S: usize> {
     file: fs::File,
-    /// Internal metadata size: 1 bytes
+    /// First byte of meta data indicate, If it was newly created file or not...
     metadata: [u8; S],
 }
 
@@ -42,6 +42,12 @@ impl<const S: usize> Pages<S> {
         self.write(0, &buf)?;
         Ok(())
     }
+    
+    /// Clear Everything, Expect Matadata
+    pub fn clear(&mut self) -> Result<()> {
+        self.file.set_len(S as u64)?;
+        Ok(())
+    }
 
     pub fn read(&mut self, page_no: u64) -> Result<[u8; S]> {
         let mut buf = [0u8; S];
@@ -57,9 +63,9 @@ impl<const S: usize> Pages<S> {
     }
 
     pub fn create(&mut self) -> Result<u64> {
-        let pos = self.file.seek(SeekFrom::End(0))?;
-        self.file.set_len(pos + S as u64)?;
-        Ok(pos / S as u64)
+        let len = self.file.seek(SeekFrom::End(0))?;
+        self.file.set_len(len + S as u64)?;
+        Ok(len / S as u64)
     }
 }
 
@@ -93,6 +99,7 @@ mod tests {
             }
             {
                 let mut pages: Pages<4096> = Pages::open(FILE_PATH)?;
+                pages.clear()?; // It does't remove metadata
                 let raw_meta = pages.metadata();
                 assert_eq!(raw_meta[0..msg.len()], *msg);
             }

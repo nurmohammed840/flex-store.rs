@@ -19,6 +19,8 @@ impl Node {
 
 #[cfg(test)]
 mod tests {
+    use crate::leaf::SetOption;
+
     use super::*;
     const BYTES: [u8; 4096] = [0; 4096];
 
@@ -36,7 +38,7 @@ mod tests {
         let dummy_leaf_node = || {
             let mut leaf = Leaf::new();
             for i in 1u8..=255 {
-                leaf.insert_and_sort_entry(i as u64, [i; 8]);
+                leaf.set_and_sort_entry(i as u64, [i; 8],SetOption::UpdateOrInsert);
             }
             Node::Leaf(leaf).to_bytes()
         };

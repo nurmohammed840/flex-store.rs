@@ -7,6 +7,11 @@ pub struct Entry {
     pub value: [u8; 8],
 }
 
+pub enum SetOption {
+    UpdateOrInsert,
+    FindOrInsert,
+}
+
 #[repr(C)]
 pub struct Leaf {
     pub entrys: [Entry; 255],
@@ -27,17 +32,28 @@ impl Leaf {
         }
     }
 
-    fn binery_search_by(&self, id: u64) -> Result<usize, usize> {
+    fn binary_search(&self, id: u64) -> Result<usize, usize> {
         self.entrys[..(self.len as usize)].binary_search_by_key(&id, |e| e.id)
     }
 
-    /// Duplicate Id is ignored...
-    ///
     /// Note: This funtion will panic, If insetion count is greater than buf size (255)
-    pub fn insert_and_sort_entry(&mut self, id: u64, value: [u8; 8]) {
-        if let Err(i) = self.binery_search_by(id) {
-            insert_within_slice(&mut self.entrys, i, Entry { id, value });
-            self.len += 1;
+    pub fn set_and_sort_entry(&mut self, id: u64, value: [u8; 8], opt: SetOption) -> [u8; 8] {
+        match opt {
+            SetOption::FindOrInsert => match self.binary_search(id) {
+                Ok(i) => self.entrys[i].value,
+                Err(i) => {
+                    insert_within_slice(&mut self.entrys, i, Entry { id, value });
+                    self.len += 1;
+                    self.entrys[i].value
+                }
+            },
+            SetOption::UpdateOrInsert => match self.binary_search(id) {
+                Ok(i) => {
+                    self.entrys[i].value = value;
+                    self.entrys[i].value
+                }
+                Err(_) => self.set_and_sort_entry(id, value, SetOption::FindOrInsert),
+            }
         }
     }
 
@@ -55,7 +71,7 @@ impl Leaf {
     }
 
     pub fn find_value(&self, id: u64) -> Option<[u8; 8]> {
-        match self.binery_search_by(id) {
+        match self.binary_search(id) {
             Ok(i) => Some(self.entrys[i].value),
             _ => None,
         }
@@ -72,7 +88,7 @@ mod tests {
         let ids = [1, 0, 5, 4, 2, 6, 3];
 
         for id in ids {
-            leaf.insert_and_sort_entry(id, [0; 8]);
+            leaf.set_and_sort_entry(id, [0; 8], SetOption::UpdateOrInsert);
         }
 
         let sorted_ids: Vec<_> = leaf.entrys.iter().map(|&v| v.id).collect();
