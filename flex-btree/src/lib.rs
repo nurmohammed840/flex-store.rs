@@ -121,6 +121,9 @@ fn set(
 
 #[cfg(test)]
 mod tests {
+
+    use std::fmt::Debug;
+
     use super::*;
     #[test]
     fn all() -> Result<()> {
@@ -140,5 +143,90 @@ mod tests {
 
         std::fs::remove_file("file.db")?;
         Ok(())
+    }
+
+    #[test]
+    #[ignore = "This test is only for debuging purpose"]
+    fn debug_tree() -> Result<()> {
+        let mut tree = BPlusTree::open("tree")?;
+        tree.clear()?;
+        for i in (1..=100000).rev() {
+            tree.set(i, [0; 8], SetOption::UpdateOrInsert)?;
+        }
+        std::fs::write("tree.txt", format_btree(&mut tree)?)?;
+        std::fs::remove_file("tree")?;
+        Ok(())
+    }
+
+    fn format_btree(tree: &mut BPlusTree) -> Result<String> {
+        #[allow(dead_code)]
+        #[derive(Debug)]
+        enum TreeNode {
+            Branch {
+                ids: Vec<u64>,
+                childs: Vec<TreeNode>,
+            },
+            Leaf(Vec<u64>),
+        }
+        fn build_tree(i: u16, pages: &mut Pages<4096>) -> Result<TreeNode> {
+            Ok(match Node::from_bytes(pages.read(i as u64)?) {
+                Node::Branch(b) => TreeNode::Branch {
+                    ids: b.ids.into_iter().filter(|&r| r != 0).collect(),
+                    childs: b
+                        .childs
+                        .into_iter()
+                        .filter(|&i| i != 0)
+                        .map(|i| build_tree(i, pages).unwrap())
+                        .collect(),
+                },
+                Node::Leaf(l) => TreeNode::Leaf(
+                    l.entrys[..(l.len as usize)]
+                        .into_iter()
+                        .map(|&f| f.id)
+                        .collect(),
+                ),
+            })
+        }
+        fn prettier(txt: &mut std::str::Split<&str>, indent_lvl: usize) -> String {
+            let mut arr = vec![];
+            while let Some(chars) = txt.next() {
+                match chars {
+                    "{" | "[" => {
+                        arr.push(chars.to_string());
+                        arr.push("\n".to_string());
+                        arr.push("\t".repeat(indent_lvl + 1));
+                        arr.push(prettier(txt, indent_lvl + 1));
+                    }
+                    "}" | "]" => {
+                        arr.push("\n".to_string());
+                        arr.push("\t".repeat(indent_lvl - 1));
+                        arr.push(chars.to_string());
+                        return arr.concat();
+                    }
+                    _ => {
+                        let tabs = &"\t".repeat(indent_lvl)[..];
+                        let string = if chars.starts_with(", ") {
+                            chars.replacen(", ", &["\n", tabs].concat(), 1)
+                        } else {
+                            chars.trim_start().replace("), ", &[")\n", tabs].concat())
+                        };
+                        arr.push(string);
+                    }
+                }
+            }
+            arr.concat()
+        }
+        let txt = prettier(
+            &mut format!("{:?}", build_tree(tree.root_page_no, &mut tree.pages)?)
+                .replace("([", "(")
+                .replace("])", ")")
+                .replace("{", "#{#")
+                .replace("}", "#}#")
+                .replace("[", "#[#")
+                .replace("]", "#]#")
+                .split("#"),
+            0,
+        );
+        Ok(txt)
     }
 }
