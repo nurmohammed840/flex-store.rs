@@ -1,4 +1,5 @@
 mod branch;
+mod cursor;
 mod leaf;
 mod node;
 mod utill;
@@ -39,14 +40,15 @@ impl BPlusTree {
         Ok(())
     }
 
-    pub fn get(&mut self, id: u64) -> Result<Option<[u8; 8]>> {
-        fn next(page_no: u16, pages: &mut Pages<4096>, id: u64) -> Result<Option<[u8; 8]>> {
-            match Node::from_bytes(pages.read(page_no as u64)?) {
-                Node::Branch(b) => next(b.childs[b.lookup(id)], pages, id),
-                Node::Leaf(leaf) => Ok(leaf.find_value(id)),
-            }
+    fn find_leaf(&mut self, page_no: u16, id: u64) -> Result<leaf::Leaf> {
+        match Node::from_bytes(self.pages.read(page_no as u64)?) {
+            Node::Branch(b) => self.find_leaf(b.childs[b.lookup(id)], id),
+            Node::Leaf(leaf) => Ok(leaf),
         }
-        next(self.root_page_no, &mut self.pages, id)
+    }
+
+    pub fn get(&mut self, id: u64) -> Result<Option<[u8; 8]>> {
+        Ok(self.find_leaf(self.root_page_no, id)?.find_value(id))
     }
 
     pub fn clear(&mut self) -> Result<()> {
@@ -64,7 +66,7 @@ impl BPlusTree {
     }
 
     pub fn set(&mut self, id: u64, value: [u8; 8], opt: SetOption) -> Result<[u8; 8]> {
-        let tuple = set(self.root_page_no, &mut self.pages, id, value, opt)?;
+        let tuple = self.set_next(self.root_page_no, id, value, opt)?;
         if let Some((id, right_page_no)) = tuple.0 {
             let root = Branch::create_root(id, self.root_page_no, right_page_no);
             let page_no = self.pages.create()?;
@@ -73,55 +75,54 @@ impl BPlusTree {
         };
         Ok(tuple.1)
     }
-}
 
-fn set(
-    page_no: u16,
-    pages: &mut Pages<4096>,
-    id: u64,
-    value: [u8; 8],
-    opt: SetOption,
-) -> Result<(Option<(u64, u16)>, [u8; 8])> {
-    let mut node = Node::from_bytes(pages.read(page_no as u64)?);
-    let mut ret = None;
-    let ret_value;
-    match node {
-        Node::Branch(ref mut branch) => {
-            let i = branch.lookup(id);
-            let tuple = set(branch.childs[i], pages, id, value, opt)?;
-            ret_value = tuple.1;
-            if let Some(value) = tuple.0 {
-                branch.update(i, value);
-                if branch.is_full() {
-                    let (right, mid) = branch.split();
-                    let page = pages.create()?;
-                    pages.write(page, &Node::Branch(right).to_bytes())?;
+    fn set_next(
+        &mut self,
+        page_no: u16,
+        id: u64,
+        value: [u8; 8],
+        opt: SetOption,
+    ) -> Result<(Option<(u64, u16)>, [u8; 8])> {
+        let mut node = Node::from_bytes(self.pages.read(page_no as u64)?);
+        let mut ret = None;
+        let ret_value;
+        match node {
+            Node::Branch(ref mut branch) => {
+                let i = branch.lookup(id);
+                let tuple = self.set_next(branch.childs[i], id, value, opt)?;
+                ret_value = tuple.1;
+                if let Some(value) = tuple.0 {
+                    branch.update(i, value);
+                    if branch.is_full() {
+                        let (right, mid) = branch.split();
+                        let page = self.pages.create()?;
+                        self.pages.write(page, &Node::Branch(right).to_bytes())?;
+                        ret = Some((mid, page as u16));
+                    }
+                    self.pages.write(page_no as u64, &node.to_bytes())?;
+                }
+            }
+            Node::Leaf(ref mut left) => {
+                ret_value = left.set_and_sort_entry(id, value, opt);
+                if left.is_full() {
+                    let (mut right, mid) = left.split();
+                    let page = self.pages.create()?;
+
+                    right.left_child = page_no;
+                    left.right_child = page as u16;
+
+                    self.pages.write(page, &Node::Leaf(right).to_bytes())?;
                     ret = Some((mid, page as u16));
                 }
-                pages.write(page_no as u64, &node.to_bytes())?;
+                self.pages.write(page_no as u64, &node.to_bytes())?;
             }
-        }
-        Node::Leaf(ref mut left) => {
-            ret_value = left.set_and_sort_entry(id, value, opt);
-            if left.is_full() {
-                let (mut right, mid) = left.split();
-                let page = pages.create()?;
-
-                right.left_child = page_no;
-                left.right_child = page as u16;
-
-                pages.write(page, &Node::Leaf(right).to_bytes())?;
-                ret = Some((mid, page as u16));
-            }
-            pages.write(page_no as u64, &node.to_bytes())?;
-        }
-    };
-    Ok((ret, ret_value))
+        };
+        Ok((ret, ret_value))
+    }
 }
 
 #[cfg(test)]
 mod tests {
-
     use std::fmt::Debug;
 
     use super::*;
@@ -141,6 +142,8 @@ mod tests {
             btree.set(3, *b"Repleced", SetOption::UpdateOrInsert)?
         );
 
+        assert_eq!(Some(*b"Repleced"), btree.get(3)?);
+
         std::fs::remove_file("file.db")?;
         Ok(())
     }
@@ -150,7 +153,7 @@ mod tests {
     fn debug_tree() -> Result<()> {
         let mut tree = BPlusTree::open("tree")?;
         tree.clear()?;
-        for i in (1..=100000).rev() {
+        for i in (1..=255).rev() {
             tree.set(i, [0; 8], SetOption::UpdateOrInsert)?;
         }
         std::fs::write("tree.txt", format_btree(&mut tree)?)?;
@@ -158,7 +161,7 @@ mod tests {
         Ok(())
     }
 
-    fn format_btree(tree: &mut BPlusTree) -> Result<String> {
+    pub fn format_btree(tree: &mut BPlusTree) -> Result<String> {
         #[allow(dead_code)]
         #[derive(Debug)]
         enum TreeNode {

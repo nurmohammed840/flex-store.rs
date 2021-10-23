@@ -32,8 +32,12 @@ impl Leaf {
         }
     }
 
+    pub(crate) fn get_entrys(&self) -> &[Entry] {
+        &self.entrys[..(self.len as usize)]
+    }
+
     fn binary_search(&self, id: u64) -> Result<usize, usize> {
-        self.entrys[..(self.len as usize)].binary_search_by_key(&id, |e| e.id)
+        self.get_entrys().binary_search_by_key(&id, |e| e.id)
     }
 
     /// Note: This funtion will panic, If insetion count is greater than buf size (255)
@@ -53,7 +57,7 @@ impl Leaf {
                     self.entrys[i].value
                 }
                 Err(_) => self.set_and_sort_entry(id, value, SetOption::FindOrInsert),
-            }
+            },
         }
     }
 

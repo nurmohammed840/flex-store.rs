@@ -15,6 +15,14 @@ impl Node {
     pub fn from_bytes(bytes: [u8; 4096]) -> Self {
         unsafe { transmute::<[u8; 4096], Self>(bytes) }
     }
+
+    pub fn get_leaf(self) -> Option<Leaf> {
+        if let Node::Leaf(leaf) = self {
+            Some(leaf)
+        } else {
+            None
+        }
+    }
 }
 
 #[cfg(test)]
@@ -32,13 +40,13 @@ mod tests {
         };
         assert!(is_leaf_node);
     }
-    
+
     #[test]
     fn perform_transmute() {
         let dummy_leaf_node = || {
             let mut leaf = Leaf::new();
             for i in 1u8..=255 {
-                leaf.set_and_sort_entry(i as u64, [i; 8],SetOption::UpdateOrInsert);
+                leaf.set_and_sort_entry(i as u64, [i; 8], SetOption::UpdateOrInsert);
             }
             Node::Leaf(leaf).to_bytes()
         };
