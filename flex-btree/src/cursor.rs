@@ -9,13 +9,6 @@ pub struct Cursor<'a> {
     index: usize,
 }
 
-impl Deref for Cursor<'_> {
-    type Target = [u8; 8];
-    fn deref(&self) -> &Self::Target {
-        todo!()
-    }
-}
-
 impl Iterator for Cursor<'_> {
     type Item = Result<[u8; 8]>;
     fn next(&mut self) -> Option<Self::Item> {
@@ -24,7 +17,7 @@ impl Iterator for Cursor<'_> {
             return Some(Ok(entry.value));
         }
         if self.leaf.right_child != 0 {
-            match self.pages.read(self.leaf.right_child as u64) {
+            return match self.pages.read(self.leaf.right_child as u64) {
                 Ok(buf) => Node::from_bytes(buf).get_leaf().and_then(|leaf| {
                     self.index = 0;
                     self.leaf = leaf;
@@ -32,9 +25,8 @@ impl Iterator for Cursor<'_> {
                 }),
                 Err(err) => Some(Result::Err(err)),
             }
-        } else {
-            None
         }
+        None
     }
 }
 
@@ -60,6 +52,7 @@ mod tests {
         for (i, res) in cursor.enumerate() {
             assert_eq!(res?, [i as u8; 8]);
         }
+       
         std::fs::remove_file("filepath")?;
         Ok(())
     }

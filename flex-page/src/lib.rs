@@ -64,7 +64,7 @@ impl<const S: usize> Pages<S> {
 
     pub fn create(&mut self) -> Result<u64> {
         let len = self.file.seek(SeekFrom::End(0))?;
-        self.file.set_len(len + S as u64)?;
+        self.file.set_len(len + S as u64)?; // todo: maybe remove this line?
         Ok(len / S as u64)
     }
 }

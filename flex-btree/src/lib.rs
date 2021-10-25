@@ -58,15 +58,19 @@ impl BPlusTree {
     }
 
     pub fn size(&self) {
-        // todo
+        todo!()
     }
 
     pub fn delete(&mut self) {
-        // todo
+        todo!()
+    }
+
+    pub fn bulk_write(&mut self) {
+        todo!()
     }
 
     pub fn set(&mut self, id: u64, value: [u8; 8], opt: SetOption) -> Result<[u8; 8]> {
-        let tuple = self.set_next(self.root_page_no, id, value, opt)?;
+        let tuple = self.find_leaf_and_set_value(self.root_page_no, id, value, opt)?;
         if let Some((id, right_page_no)) = tuple.0 {
             let root = Branch::create_root(id, self.root_page_no, right_page_no);
             let page_no = self.pages.create()?;
@@ -76,7 +80,7 @@ impl BPlusTree {
         Ok(tuple.1)
     }
 
-    fn set_next(
+    fn find_leaf_and_set_value(
         &mut self,
         page_no: u16,
         id: u64,
@@ -89,7 +93,7 @@ impl BPlusTree {
         match node {
             Node::Branch(ref mut branch) => {
                 let i = branch.lookup(id);
-                let tuple = self.set_next(branch.childs[i], id, value, opt)?;
+                let tuple = self.find_leaf_and_set_value(branch.childs[i], id, value, opt)?;
                 ret_value = tuple.1;
                 if let Some(value) = tuple.0 {
                     branch.update(i, value);
