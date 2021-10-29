@@ -1,5 +1,5 @@
 use flex_page::Pages;
-use std::{io::Result, ops::Deref};
+use std::io::Result;
 
 use crate::{leaf::Leaf, node::Node};
 
@@ -24,7 +24,7 @@ impl Iterator for Cursor<'_> {
                     self.next()
                 }),
                 Err(err) => Some(Result::Err(err)),
-            }
+            };
         }
         None
     }
@@ -32,6 +32,7 @@ impl Iterator for Cursor<'_> {
 
 #[cfg(test)]
 mod tests {
+
     use crate::{BPlusTree, SetOption};
 
     use super::*;
@@ -39,7 +40,7 @@ mod tests {
     #[test]
     fn iter() -> Result<()> {
         let mut tree = BPlusTree::open("filepath")?;
-        // max entry size is 255, So btree should split, into two leaf 
+        // max entry size is 255, So btree should split, into two leaf
         for i in 0..255 {
             tree.set(i, [i as u8; 8], SetOption::UpdateOrInsert)?;
         }
@@ -52,7 +53,7 @@ mod tests {
         for (i, res) in cursor.enumerate() {
             assert_eq!(res?, [i as u8; 8]);
         }
-       
+
         std::fs::remove_file("filepath")?;
         Ok(())
     }

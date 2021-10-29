@@ -3,4 +3,5 @@
 members = [
     "flex-page",
     "flex-btree",
+    "flex-value",
 ]
