@@ -1,10 +1,11 @@
 mod array;
-mod map;
+mod object;
 mod prelude;
 mod utils;
 
-use array::Array;
-use map::Map;
+pub use array::Array;
+pub use object::Object;
+
 use utils::ByteSeeker;
 
 #[derive(Clone, Debug)]
@@ -14,7 +15,7 @@ pub enum Value {
     Number(f64),
     String(String),
     Array(Array),
-    Map(Map),
+    Object(Object),
 }
 
 impl Default for Value {
@@ -29,48 +30,48 @@ impl Value {
     }
 
     pub fn as_bool(&self) -> Option<bool> {
-        match *self {
-            Value::Bool(boolean) => Some(boolean),
+        match self {
+            Value::Bool(boolean) => Some(*boolean),
             _ => None,
         }
     }
     pub fn as_num(&self) -> Option<f64> {
-        match *self {
-            Value::Number(num) => Some(num),
+        match self {
+            Value::Number(num) => Some(*num),
             _ => None,
         }
     }
     pub fn as_str(&self) -> Option<&str> {
-        match *self {
-            Value::String(ref string) => Some(&string),
+        match self {
+            Value::String(string) => Some(string),
             _ => None,
         }
     }
 
     pub fn as_arr(&self) -> Option<&Array> {
-        match *self {
-            Value::Array(ref arr) => Some(arr),
+        match self {
+            Value::Array(arr) => Some(arr),
             _ => None,
         }
     }
 
     pub fn as_arr_mut(&mut self) -> Option<&mut Array> {
-        match *self {
-            Value::Array(ref mut arr) => Some(arr),
+        match self {
+            Value::Array(arr) => Some(arr),
             _ => None,
         }
     }
 
-    pub fn as_obj(&self) -> Option<&Map> {
-        match *self {
-            Value::Map(ref obj) => Some(obj),
+    pub fn as_obj(&self) -> Option<&Object> {
+        match self {
+            Value::Object(obj) => Some(obj),
             _ => None,
         }
     }
 
-    pub fn as_obj_mut(&mut self) -> Option<&mut Map> {
-        match *self {
-            Value::Map(ref mut obj) => Some(obj),
+    pub fn as_obj_mut(&mut self) -> Option<&mut Object> {
+        match self {
+            Value::Object(obj) => Some(obj),
             _ => None,
         }
     }
@@ -85,7 +86,7 @@ impl Value {
             Value::Number(num) => [vec![3], num.to_le_bytes().to_vec()].concat(),
             Value::String(_) => todo!(),
             Value::Array(_) => todo!(),
-            Value::Map(ref obj) => {
+            Value::Object(ref obj) => {
                 let len: u16 = obj
                     .len()
                     .try_into()
@@ -123,14 +124,14 @@ impl Value {
             }
             6 => {
                 let len = u16::from_le_bytes(seeker.get_buf());
-                let mut map = Map::new();
+                let mut map = Object::new();
                 for _ in 0..len {
                     let key_len = seeker.first();
                     let vec = seeker.get_vec(key_len as usize);
 
                     map.insert(&String::from_utf8(vec).unwrap(), Value::from_byte(seeker));
                 }
-                Value::Map(map)
+                Value::Object(map)
             }
             c => panic!("Invalid TypeCode: {}", c),
         }
@@ -141,7 +142,6 @@ impl Value {
 mod tests {
     // use json::JsonValue;
     // use serde_json::{json, Value};
-
 
     #[test]
     fn it_works() {

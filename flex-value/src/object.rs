@@ -1,14 +1,13 @@
-use crate::{prelude::FlexVal, Value};
+use crate::{prelude::*, Value};
 use std::collections::{btree_map, BTreeMap};
 
-
 #[derive(Default, Debug, Clone)]
-pub struct Map(BTreeMap<String, Value>);
+pub struct Object(BTreeMap<String, Value>);
 
-impl Map {
+impl Object {
     #[inline]
     pub fn new() -> Self {
-        Map::default()
+        Object::default()
     }
 
     #[inline]
@@ -87,9 +86,5 @@ impl Map {
     }
 }
 
-#[cfg(test)]
-mod tests {
-
-    #[test]
-    fn test_name() {}
-}
+#[test]
+fn test_name() {}

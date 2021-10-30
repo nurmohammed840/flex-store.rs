@@ -1,8 +1,4 @@
-use crate::{Array, Map, Value};
-
-/*
-    It contain
-*/
+use crate::{Array, Object, Value};
 
 pub trait FlexVal: IntoFlexVal {
     fn to_flex_val(&self) -> Value;
@@ -10,6 +6,23 @@ pub trait FlexVal: IntoFlexVal {
 
 pub trait IntoFlexVal: Clone {
     fn to_flex_val(self) -> Value;
+}
+
+// ----------------------------- Macro -----------------------------
+
+#[macro_export]
+macro_rules! map {
+    [$($value:expr),* $(,)?] => ({
+        let mut arr = $crate::Array::new();
+        $(arr.push($value);)*
+        arr
+    });
+
+    [$($key:expr => $value:expr),* $(,)?] => ({
+        let mut map = $crate::Object::new();
+        $(map.insert($key, $value);)*
+        map
+    });
 }
 
 // ----------------------------- All-Value -----------------------------
@@ -128,26 +141,6 @@ impl<T: IntoFlexVal, const S: usize> IntoFlexVal for [T; S] {
     }
 }
 
-impl<T: FlexVal> FlexVal for &[T] {
-    fn to_flex_val(&self) -> Value {
-        let mut arr = Array::new();
-        for v in self.into_iter() {
-            arr.push(v.to_flex_val())
-        }
-        Value::Array(arr)
-    }
-}
-
-impl<T: IntoFlexVal> IntoFlexVal for &[T] {
-    fn to_flex_val(self) -> Value {
-        let mut arr = Array::new();
-        for v in self.to_vec() {
-            arr.push(v.to_flex_val());
-        }
-        Value::Array(arr)
-    }
-}
-
 impl<T: FlexVal> FlexVal for Vec<T> {
     fn to_flex_val(&self) -> Value {
         let mut arr = Array::new();
@@ -168,6 +161,26 @@ impl<T: FlexVal> IntoFlexVal for Vec<T> {
     }
 }
 
+impl<T: FlexVal> FlexVal for &[T] {
+    fn to_flex_val(&self) -> Value {
+        let mut arr = Array::new();
+        for v in self.into_iter() {
+            arr.push(v.to_flex_val())
+        }
+        Value::Array(arr)
+    }
+}
+
+impl<T: IntoFlexVal> IntoFlexVal for &[T] {
+    fn to_flex_val(self) -> Value {
+        let mut arr = Array::new();
+        for v in self.to_vec() {
+            arr.push(v.to_flex_val());
+        }
+        Value::Array(arr)
+    }
+}
+
 impl FlexVal for Array {
     fn to_flex_val(&self) -> Value {
         Value::Array(self.clone())
@@ -182,15 +195,14 @@ impl IntoFlexVal for Array {
 
 // ----------------------------- Map  -----------------------------
 
-impl FlexVal for Map {
+impl FlexVal for Object {
     fn to_flex_val(&self) -> Value {
-        Value::Map(self.clone())
+        Value::Object(self.clone())
     }
 }
 
-impl IntoFlexVal for Map {
+impl IntoFlexVal for Object {
     fn to_flex_val(self) -> Value {
-        Value::Map(self)
+        Value::Object(self)
     }
 }
-
