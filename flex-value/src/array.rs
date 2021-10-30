@@ -1,18 +1,23 @@
 use crate::{prelude::*, Value};
-use std::{ops::Index, slice};
+use std::{fmt::Debug, slice};
 
-impl Index<usize> for Value {
-    type Output = Self;
-    fn index(&self, index: usize) -> &Self::Output {
-        match self {
-            &Self::Array(ref arr) => arr.get(index).unwrap_or(&Self::Null),
-            _ => &Self::Null,
+#[derive(Clone, Default, PartialEq)]
+pub struct Array(Vec<Value>);
+
+impl Debug for Array {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("[")?;
+        let mut iter = self.iter();
+        if let Some(value) = iter.next() {
+            f.write_str(&format!("{:?}", value))?
         }
+        for value in iter {
+            f.write_str(&format!(", {:?}", value))?
+        }
+        f.write_str("]")?;
+        Ok(())
     }
 }
-
-#[derive(Clone, Debug, Default)]
-pub struct Array(Vec<Value>);
 
 impl Array {
     #[inline]
@@ -26,18 +31,28 @@ impl Array {
     }
 
     #[inline]
-    pub fn pop(&mut self) -> Option<Value> {
-        self.0.pop()
+    pub fn first(&mut self) -> &Value {
+        self.0.first().unwrap_or(&Value::Null)
     }
 
     #[inline]
-    pub fn len(&self) -> usize {
-        self.0.len()
+    pub fn last(&mut self) -> &Value {
+        self.0.last().unwrap_or(&Value::Null)
     }
 
     #[inline]
-    pub fn get(&self, index: usize) -> Option<&Value> {
-        self.0.get(index)
+    pub fn pop(&mut self) -> Value {
+        self.0.pop().unwrap_or(Value::Null)
+    }
+
+    #[inline]
+    pub fn get(&self, index: usize) -> &Value {
+        self.0.get(index).unwrap_or(&Value::Null)
+    }
+
+    #[inline]
+    pub fn insert<T: FlexVal>(&mut self, index: usize, value: T) {
+        self.0.insert(index, value.to_flex_val());
     }
 
     #[inline]
@@ -46,8 +61,16 @@ impl Array {
     }
 
     #[inline]
-    pub fn insert<T: FlexVal>(&mut self, index: usize, value: T) {
-        self.0.insert(index, value.to_flex_val());
+    pub fn fill<T: FlexVal>(&mut self, value: T) {
+        self.0.fill(value.to_flex_val());
+    }
+
+    #[inline]
+    pub fn remove(&mut self, index: usize) -> Value {
+        if self.len() >= index {
+            return Value::Null;
+        }
+        self.0.remove(index)
     }
 
     #[inline]
@@ -61,18 +84,13 @@ impl Array {
     }
 
     #[inline]
-    pub fn fill<T: FlexVal>(&mut self, value: T) {
-        self.0.fill(value.to_flex_val());
-    }
-
-    #[inline]
     pub fn clear(&mut self) {
         self.0.clear()
     }
 
     #[inline]
-    pub fn remove(&mut self, index: usize) -> Value {
-        self.0.remove(index)
+    pub fn len(&self) -> usize {
+        self.0.len()
     }
 
     #[inline]
@@ -84,4 +102,6 @@ impl Array {
     pub fn own_mut(&mut self) -> &mut Vec<Value> {
         &mut self.0
     }
+
+    // pub fn to_string(indent: u8) {}
 }

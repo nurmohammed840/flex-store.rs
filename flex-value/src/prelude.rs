@@ -1,3 +1,5 @@
+use std::ops::Index;
+
 use crate::{Array, Object, Value};
 
 pub trait FlexVal: IntoFlexVal {
@@ -11,18 +13,37 @@ pub trait IntoFlexVal: Clone {
 // ----------------------------- Macro -----------------------------
 
 #[macro_export]
-macro_rules! map {
+macro_rules! arr {
     [$($value:expr),* $(,)?] => ({
         let mut arr = $crate::Array::new();
         $(arr.push($value);)*
         arr
     });
+}
 
+#[macro_export]
+macro_rules! obj {
     [$($key:expr => $value:expr),* $(,)?] => ({
         let mut map = $crate::Object::new();
         $(map.insert($key, $value);)*
         map
     });
+}
+
+// ----------------------------- Index -----------------------------
+
+impl Index<usize> for Array {
+    type Output = Value;
+    fn index(&self, index: usize) -> &Self::Output {
+        self.get(index)
+    }
+}
+
+impl Index<&str> for Object {
+    type Output = Value;
+    fn index(&self, key: &str) -> &Self::Output {
+        self.get(key)
+    }
 }
 
 // ----------------------------- All-Value -----------------------------

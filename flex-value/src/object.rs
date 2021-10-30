@@ -1,8 +1,29 @@
 use crate::{prelude::*, Value};
-use std::collections::{btree_map, BTreeMap};
+use std::{
+    collections::{btree_map, BTreeMap},
+    fmt::Debug,
+};
 
-#[derive(Default, Debug, Clone)]
+#[derive(Default, Clone, PartialEq)]
 pub struct Object(BTreeMap<String, Value>);
+
+impl Debug for Object {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("{")?;
+        let mut iter = self.iter();
+
+        if let Some((key, value)) = iter.next() {
+            f.write_str(&format!("{:?}: {:?}", key, value))?;
+        }
+
+        for (key, value) in iter {
+            f.write_str(&format!(", {:?}: {:?}", key, value))?;
+        }
+
+        f.write_str("}")?;
+        Ok(())
+    }
+}
 
 impl Object {
     #[inline]
@@ -16,8 +37,8 @@ impl Object {
     }
 
     #[inline]
-    pub fn remove(&mut self, key: &str) -> Option<Value> {
-        self.0.remove(key)
+    pub fn remove(&mut self, key: &str) -> Value {
+        self.0.remove(key).unwrap_or(Value::Null)
     }
 
     #[inline]
@@ -31,8 +52,8 @@ impl Object {
     }
 
     #[inline]
-    pub fn get(&self, key: &str) -> Option<&Value> {
-        self.0.get(key)
+    pub fn get(&self, key: &str) -> &Value {
+        self.0.get(key).unwrap_or(&Value::Null)
     }
 
     #[inline]
@@ -41,8 +62,10 @@ impl Object {
     }
 
     #[inline]
-    pub fn insert<V: FlexVal>(&mut self, key: &str, value: V) -> Option<Value> {
-        self.0.insert(key.to_string(), value.to_flex_val())
+    pub fn insert<V: FlexVal>(&mut self, key: &str, value: V) -> Value {
+        self.0
+            .insert(key.to_string(), value.to_flex_val())
+            .unwrap_or(Value::Null)
     }
 
     #[inline]

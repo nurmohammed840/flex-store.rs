@@ -3,12 +3,15 @@ mod object;
 mod prelude;
 mod utils;
 
+use std::fmt::Debug;
+
 pub use array::Array;
 pub use object::Object;
+pub use prelude::*;
 
 use utils::ByteSeeker;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, PartialEq)]
 pub enum Value {
     Bool(bool),
     Null,
@@ -16,6 +19,22 @@ pub enum Value {
     String(String),
     Array(Array),
     Object(Object),
+}
+
+pub const NULL: Value = Value::Null;
+
+impl Debug for Value {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Bool(arg0) => f.write_str(&format!("{}", arg0))?,
+            Self::Null => f.write_str("null")?,
+            Self::Number(arg0) => f.write_str(&format!("{}", arg0))?,
+            Self::String(arg0) => f.write_str(&format!("{:?}", arg0))?,
+            Self::Array(arg0) => f.write_str(&format!("{:?}", arg0))?,
+            Self::Object(arg0) => f.write_str(&format!("{:?}", arg0))?,
+        }
+        Ok(())
+    }
 }
 
 impl Default for Value {
@@ -29,18 +48,24 @@ impl Value {
         Self::default()
     }
 
+    pub fn set<T: FlexVal>(&mut self, value: T) {
+        *self = value.to_flex_val();
+    }
+
     pub fn as_bool(&self) -> Option<bool> {
         match self {
             Value::Bool(boolean) => Some(*boolean),
             _ => None,
         }
     }
+
     pub fn as_num(&self) -> Option<f64> {
         match self {
             Value::Number(num) => Some(*num),
             _ => None,
         }
     }
+
     pub fn as_str(&self) -> Option<&str> {
         match self {
             Value::String(string) => Some(string),
