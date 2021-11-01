@@ -1,23 +1,8 @@
 use crate::{prelude::*, Value};
-use std::{fmt::Debug, slice};
+use std::slice;
 
 #[derive(Clone, Default, PartialEq)]
 pub struct Array(Vec<Value>);
-
-impl Debug for Array {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("[")?;
-        let mut iter = self.iter();
-        if let Some(value) = iter.next() {
-            f.write_str(&format!("{:?}", value))?
-        }
-        for value in iter {
-            f.write_str(&format!(", {:?}", value))?
-        }
-        f.write_str("]")?;
-        Ok(())
-    }
-}
 
 impl Array {
     #[inline]
@@ -103,5 +88,4 @@ impl Array {
         &mut self.0
     }
 
-    // pub fn to_string(indent: u8) {}
 }

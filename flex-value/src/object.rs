@@ -1,29 +1,8 @@
 use crate::{prelude::*, Value};
-use std::{
-    collections::{btree_map, BTreeMap},
-    fmt::Debug,
-};
+use std::collections::{btree_map, BTreeMap};
 
 #[derive(Default, Clone, PartialEq)]
 pub struct Object(BTreeMap<String, Value>);
-
-impl Debug for Object {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("{")?;
-        let mut iter = self.iter();
-
-        if let Some((key, value)) = iter.next() {
-            f.write_str(&format!("{:?}: {:?}", key, value))?;
-        }
-
-        for (key, value) in iter {
-            f.write_str(&format!(", {:?}: {:?}", key, value))?;
-        }
-
-        f.write_str("}")?;
-        Ok(())
-    }
-}
 
 impl Object {
     #[inline]
@@ -91,11 +70,6 @@ impl Object {
     #[inline]
     pub fn len(&self) -> usize {
         self.0.len()
-    }
-
-    #[inline]
-    pub fn to_string(&self) {
-        todo!()
     }
 
     #[inline]

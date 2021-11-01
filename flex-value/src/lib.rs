@@ -3,49 +3,26 @@ mod object;
 mod prelude;
 mod utils;
 
-use std::fmt::Debug;
+use std::{num::TryFromIntError, string::FromUtf8Error};
 
 pub use array::Array;
 pub use object::Object;
 pub use prelude::*;
 
-use utils::ByteSeeker;
 
 #[derive(Clone, PartialEq)]
 pub enum Value {
-    Bool(bool),
     Null,
+    Boolean(bool),
     Number(f64),
     String(String),
     Array(Array),
     Object(Object),
 }
 
-pub const NULL: Value = Value::Null;
-
-impl Debug for Value {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Bool(arg0) => f.write_str(&format!("{}", arg0))?,
-            Self::Null => f.write_str("null")?,
-            Self::Number(arg0) => f.write_str(&format!("{}", arg0))?,
-            Self::String(arg0) => f.write_str(&format!("{:?}", arg0))?,
-            Self::Array(arg0) => f.write_str(&format!("{:?}", arg0))?,
-            Self::Object(arg0) => f.write_str(&format!("{:?}", arg0))?,
-        }
-        Ok(())
-    }
-}
-
-impl Default for Value {
-    fn default() -> Self {
-        Self::Null
-    }
-}
-
 impl Value {
     pub fn new() -> Self {
-        Self::default()
+        Self::Null
     }
 
     pub fn set<T: FlexVal>(&mut self, value: T) {
@@ -54,7 +31,7 @@ impl Value {
 
     pub fn as_bool(&self) -> Option<bool> {
         match self {
-            Value::Bool(boolean) => Some(*boolean),
+            Value::Boolean(boolean) => Some(*boolean),
             _ => None,
         }
     }
@@ -101,65 +78,78 @@ impl Value {
         }
     }
 
-    pub fn to_byte(&self) -> Vec<u8> {
-        match *self {
-            Value::Bool(b) => match b {
+    pub fn to_byte(&self) -> Result<Vec<u8>, TryFromIntError> {
+        let bytes = match self {
+            Value::Boolean(b) => match b {
                 false => vec![0],
                 true => vec![1],
             },
             Value::Null => vec![2],
             Value::Number(num) => [vec![3], num.to_le_bytes().to_vec()].concat(),
-            Value::String(_) => todo!(),
-            Value::Array(_) => todo!(),
-            Value::Object(ref obj) => {
-                let len: u16 = obj
-                    .len()
-                    .try_into()
-                    .expect(&format!("To Much Items! Max Capacity: {}", u16::MAX));
-
-                let mut bytes = [vec![6], len.to_le_bytes().to_vec()].concat();
-                for (key, value) in obj.iter() {
-                    let key_len: u8 = key
-                        .len()
-                        .try_into()
-                        .expect(&format!("Key({}) length should less then 255", key));
-
-                    bytes.push(key_len);
-                    bytes.append(&mut key.clone().into_bytes());
-                    bytes.append(&mut value.to_byte());
+            Value::String(string) => {
+                let len: u32 = string.len().try_into()?;
+                [
+                    vec![4],
+                    len.to_le_bytes().to_vec(),
+                    string.clone().into_bytes(),
+                ]
+                .concat()
+            }
+            Value::Array(arr) => {
+                let len: u32 = arr.len().try_into()?;
+                let mut bytes = [vec![5], len.to_le_bytes().to_vec()].concat();
+                for value in arr.iter() {
+                    bytes.append(&mut value.to_byte()?);
                 }
                 bytes
             }
-        }
+            Value::Object(ref obj) => {
+                let len: u32 = obj.len().try_into()?;
+                let mut bytes = [vec![6], len.to_le_bytes().to_vec()].concat();
+                for (key, value) in obj.iter() {
+                    let key_len: u8 = key.len().try_into()?;
+                    bytes.push(key_len);
+                    bytes.append(&mut key.clone().into_bytes());
+                    bytes.append(&mut value.to_byte()?);
+                }
+                bytes
+            }
+        };
+        Ok(bytes)
     }
 
-    pub fn from_byte(seeker: &mut ByteSeeker) -> Self {
-        match seeker.first() {
-            0 => Value::Bool(false),
-            1 => Value::Bool(true),
+    pub fn from_byte(seeker: &mut utils::ByteSeeker) -> Result<Self, FromUtf8Error> {
+        let value = match seeker.first() {
+            0 => Value::Boolean(false),
+            1 => Value::Boolean(true),
             2 => Value::Null,
             3 => Value::Number(f64::from_le_bytes(seeker.get_buf())),
             4 => {
-                let _len = u32::from_le_bytes(seeker.get_buf());
-                todo!()
+                let len = u32::from_le_bytes(seeker.get_buf());
+                let bytes = seeker.get_vec(len as usize);
+                Value::String(String::from_utf8(bytes)?)
             }
             5 => {
-                let _len = u16::from_le_bytes(seeker.get_buf());
-                todo!()
+                let len = u32::from_le_bytes(seeker.get_buf());
+                let mut arr = Array::new();
+                for _ in 0..len {
+                    arr.push(Value::from_byte(seeker)?)
+                }
+                Value::Array(arr)
             }
             6 => {
-                let len = u16::from_le_bytes(seeker.get_buf());
-                let mut map = Object::new();
+                let len = u32::from_le_bytes(seeker.get_buf());
+                let mut obj = Object::new();
                 for _ in 0..len {
                     let key_len = seeker.first();
-                    let vec = seeker.get_vec(key_len as usize);
-
-                    map.insert(&String::from_utf8(vec).unwrap(), Value::from_byte(seeker));
+                    let bytes = seeker.get_vec(key_len as usize);
+                    obj.insert(&String::from_utf8(bytes)?, Value::from_byte(seeker)?);
                 }
-                Value::Object(map)
+                Value::Object(obj)
             }
             c => panic!("Invalid TypeCode: {}", c),
-        }
+        };
+        Ok(value)
     }
 }
 

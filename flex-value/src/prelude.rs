@@ -1,4 +1,4 @@
-use std::ops::Index;
+use std::{fmt::Display, ops::Index};
 
 use crate::{Array, Object, Value};
 
@@ -46,6 +46,64 @@ impl Index<&str> for Object {
     }
 }
 
+// ----------------------------- Display Json String -----------------------------
+
+impl Value {
+    fn to_string(&self) -> String {
+        match self {
+            Value::Null => "null".into(),
+            Value::Boolean(boolean) => format!("{}", boolean),
+            Value::Number(num) => format!("{}", num),
+            Value::String(string) => format!("{:?}", string),
+            Value::Array(arr) => arr.to_string(),
+            Value::Object(obj) => obj.to_string(),
+        }
+    }
+}
+
+impl Array {
+    fn to_string(&self) -> String {
+        let mut string = String::new();
+        string.push('[');
+        let mut iter = self.iter();
+        if let Some(value) = iter.next() {
+            string.push_str(&value.to_string());
+        }
+        for value in iter {
+            string.push_str(&format!(", {}", value.to_string()));
+        }
+        string.push(']');
+        string
+    }
+}
+
+impl Object {
+    fn to_string(&self) -> String {
+        let mut string = String::new();
+        string.push('{');
+        let mut iter = self.iter();
+        if let Some((key, value)) = iter.next() {
+            string.push_str(&format!("{:?}:{}", key, value.to_string()));
+        }
+        for (key, value) in iter {
+            string.push_str(&format!(",{:?}:{}", key, value.to_string()));
+        }
+        string.push('}');
+        string
+    }
+}
+
+macro_rules! impl_trait {
+    ($name:ident for $($t:ty)*) => ($(
+        impl $name for $t {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                f.write_str(&self.to_string())
+            }
+        }
+    )*)
+}
+impl_trait!(Display for Value Array Object);
+
 // ----------------------------- All-Value -----------------------------
 
 impl FlexVal for Value {
@@ -64,13 +122,13 @@ impl IntoFlexVal for Value {
 
 impl FlexVal for bool {
     fn to_flex_val(&self) -> Value {
-        Value::Bool(self.clone())
+        Value::Boolean(self.clone())
     }
 }
 
 impl IntoFlexVal for bool {
     fn to_flex_val(self) -> Value {
-        Value::Bool(self)
+        Value::Boolean(self)
     }
 }
 
