@@ -70,7 +70,7 @@ impl Array {
             string.push_str(&value.to_string());
         }
         for value in iter {
-            string.push_str(&format!(", {}", value.to_string()));
+            string.push_str(&format!(",{}", value.to_string()));
         }
         string.push(']');
         string
