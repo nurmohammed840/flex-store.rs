@@ -1,11 +1,11 @@
 mod array;
 mod object;
 mod prelude;
-mod utils;
 
 use std::{num::TryFromIntError, string::FromUtf8Error};
 
 pub use array::Array;
+use byte_seeker::ByteSeeker;
 pub use object::Object;
 pub use prelude::*;
 
@@ -118,20 +118,20 @@ impl Value {
     }
 
     pub fn from_byte(bytes: Vec<u8>) -> Result<Value, FromUtf8Error> {
-        let mut byte_seeker = utils::ByteSeeker::new(bytes);
-        fn from(seeker: &mut utils::ByteSeeker) -> Result<Value, FromUtf8Error> {
-            let value = match seeker.first() {
+        let mut byte_seeker = ByteSeeker::new(&bytes);
+        fn from(seeker: &mut ByteSeeker) -> Result<Value, FromUtf8Error> {
+            let value = match seeker.next().unwrap() {
                 0 => Value::Boolean(false),
                 1 => Value::Boolean(true),
                 2 => Value::Null,
-                3 => Value::Number(f64::from_le_bytes(seeker.get_buf())),
+                3 => Value::Number(f64::from_le_bytes(seeker.buf().unwrap())),
                 4 => {
-                    let len = u32::from_le_bytes(seeker.get_buf());
-                    let bytes = seeker.get_vec(len as usize);
+                    let len = u32::from_le_bytes(seeker.buf().unwrap());
+                    let bytes = seeker.octets(len as usize).unwrap();
                     Value::String(String::from_utf8(bytes)?)
                 }
                 5 => {
-                    let len = u32::from_le_bytes(seeker.get_buf());
+                    let len = u32::from_le_bytes(seeker.buf().unwrap());
                     let mut arr = Array::new();
                     for _ in 0..len {
                         arr.push(from(seeker)?)
@@ -139,11 +139,11 @@ impl Value {
                     Value::Array(arr)
                 }
                 6 => {
-                    let len = u32::from_le_bytes(seeker.get_buf());
+                    let len = u32::from_le_bytes(seeker.buf().unwrap());
                     let mut obj = Object::new();
                     for _ in 0..len {
-                        let key_len = seeker.first();
-                        let bytes = seeker.get_vec(key_len as usize);
+                        let key_len = seeker.next().unwrap();
+                        let bytes = seeker.octets(key_len as usize).unwrap();
                         obj.insert(&String::from_utf8(bytes)?, from(seeker)?);
                     }
                     Value::Object(obj)
