@@ -4,18 +4,15 @@ pub struct ByteSeeker<'a> {
     cursor: usize,
 }
 
-impl<'a> Iterator for ByteSeeker<'a> {
-    type Item = u8;
-    fn next(&mut self) -> Option<u8> {
-        let byte = *self.bytes.get(self.cursor)?;
-        self.cursor += 1;
-        Some(byte)
-    }
-}
-
 impl<'a> ByteSeeker<'a> {
     pub fn new(bytes: &'a [u8]) -> Self {
         Self { bytes, cursor: 0 }
+    }
+
+    pub fn next(&mut self) -> Option<u8> {
+        let byte = *self.bytes.get(self.cursor)?;
+        self.cursor += 1;
+        Some(byte)
     }
 
     pub fn advance_by(&mut self, n: usize) -> Result<(), usize> {
@@ -31,14 +28,7 @@ impl<'a> ByteSeeker<'a> {
     }
 
     pub fn buf<const S: usize>(&mut self) -> Option<[u8; S]> {
-        let len = self.cursor + S;
-        if len > self.bytes.len() {
-            return None;
-        }
-        let mut buf = [0; S];
-        buf.copy_from_slice(&self.bytes[self.cursor..len]);
-        self.cursor += S;
-        Some(buf)
+        self.octets(S)?.try_into().ok()
     }
 
     pub fn octets(&mut self, n: usize) -> Option<Vec<u8>> {
