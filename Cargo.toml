@@ -1,6 +1,8 @@
 [workspace]
 
 members = [
+    "flex-bplus-tree",
+
     "byte-seeker",
     "flex-tools",
     "flex-page",

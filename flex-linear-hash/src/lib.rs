@@ -1,18 +1,48 @@
-mod bucket_index;
+#![allow(warnings)]
 
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
-use bucket_index::BucketIndex;
 use flex_page::Pages;
 
-// #[derive(Clone, Copy, Default)]
-pub struct Entry {
-    pub id: u64,
-    pub value: [u8; 8],
+#[repr(packed)]
+pub struct BucketIndex {
+    pub round: u8,
+    pub pointer: u32,
 }
 
-pub struct Bucket {}
+impl BucketIndex {
+    pub fn get(&self, pages: &mut Pages<4096>) -> Bucket {
+        pages.read(self.pointer.into()).unwrap().into()
+    }
+    pub fn _to_bytes(self) -> [u8; 5] {
+        unsafe { std::mem::transmute::<Self, [u8; 5]>(self) }
+    }
+    pub fn _from_bytes(buf: [u8; 5]) -> Self {
+        unsafe { std::mem::transmute::<[u8; 5], Self>(buf) }
+    }
+}
+
+#[repr(C)]
+struct Entry {
+    id: u64,
+    value: [u8; 6],
+}
+
+pub struct Bucket {
+    next: u32,
+    entrys: Vec<Entry>,
+}
+
+impl From<[u8; 4096]> for Bucket {
+    fn from(buf: [u8; 4096]) -> Self {
+        todo!()
+    }
+}
+
+impl Bucket {
+    fn insert(&mut self, hash: u64, value: [u8; 6]) {}
+}
 
 // struct Map {
 //     next: u16,
@@ -37,17 +67,16 @@ pub struct Bucket {}
 // }
 
 pub struct LinearHash {
-    pages: Pages<4096>,
+    _pages: Pages<4096>,
     /// indecate next split pointer index in `bucket_indexes`;
-    next: u16,
+    next: u32,
     bucket_indexes: Vec<BucketIndex>,
 }
 
 impl LinearHash {
-    fn open(filepath: &str) -> std::io::Result<Self> {
-        let pages: Pages<4096> = Pages::open(filepath)?;
+    fn _open(filepath: &str) -> std::io::Result<Self> {
+        let _pages: Pages<4096> = Pages::open(filepath)?;
 
-        
         todo!()
         // Ok(Self {
         //     pages,
@@ -56,21 +85,23 @@ impl LinearHash {
         // })
     }
 
-    pub fn insert<K: Hash>(&self, key: K, value: [u8; 8]) {
+    pub fn insert<K: Hash>(&mut self, key: K, value: [u8; 6]) {
         let mut hasher = DefaultHasher::new();
         key.hash(&mut hasher);
-        let id = hasher.finish();
+        let hash = hasher.finish();
 
-        let _entry = Entry { id, value };
+        let bucket_index =
+            self.find_bucket_index(hash, self.bucket_indexes[self.next as usize].round);
 
-        let bucket = self.find_bucket(id, self.bucket_indexes[self.next as usize].round);
+        // let mut bucket = bucket_index.get(&mut self._pages);
+        // bucket.insert(hash, value);
     }
 
-    fn find_bucket(&self, hash: u64, round: u8) -> &BucketIndex {
+    fn find_bucket_index(&self, hash: u64, round: u8) -> &BucketIndex {
         let index = hash % (2u64).pow(round.into());
         let bucket_index = &self.bucket_indexes[index as usize];
         if bucket_index.round != round {
-            return self.find_bucket(hash, bucket_index.round);
+            return self.find_bucket_index(hash, bucket_index.round);
         }
         bucket_index
     }

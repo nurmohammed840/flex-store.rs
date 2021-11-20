@@ -128,7 +128,7 @@ impl Value {
                 4 => {
                     let len = u32::from_le_bytes(seeker.buf().unwrap());
                     let bytes = seeker.octets(len as usize).unwrap();
-                    Value::String(String::from_utf8(bytes)?)
+                    Value::String(String::from_utf8(bytes.to_vec())?)
                 }
                 5 => {
                     let len = u32::from_le_bytes(seeker.buf().unwrap());
@@ -144,7 +144,7 @@ impl Value {
                     for _ in 0..len {
                         let key_len = seeker.next().unwrap();
                         let bytes = seeker.octets(key_len as usize).unwrap();
-                        obj.insert(&String::from_utf8(bytes)?, from(seeker)?);
+                        obj.insert(&String::from_utf8(bytes.to_vec())?, from(seeker)?);
                     }
                     Value::Object(obj)
                 }
