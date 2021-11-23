@@ -1,4 +1,3 @@
-use std::{fmt::Debug, mem::size_of};
 
 pub trait Key<const S: usize>: Copy {
     fn to_bytes(&self) -> [u8; S];

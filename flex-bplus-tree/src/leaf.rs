@@ -1,35 +1,43 @@
-use crate::entry::*;
+use crate::{entry, entry::Entry};
 use byte_seeker::ByteSeeker;
-use flex_page::PageNo;
 
 pub enum SetOption {
     UpdateOrInsert,
     FindOrInsert,
 }
 
-pub struct Leaf<K, V, P, const X: usize, const Y: usize, const Z: usize, const PAGE_SIZE: usize> {
-    pub left: P,
-    pub right: P,
-    pub entrys: Vec<Entry<K, V, X, Y>>,
+pub struct Leaf<
+    Key,
+    Value,
+    PageNo,
+    const KEY: usize,
+    const VALUE: usize,
+    const PAGE_NO: usize,
+    const PAGE_SIZE: usize,
+> {
+    pub left: PageNo,
+    pub right: PageNo,
+    pub entrys: Vec<Entry<Key, Value, KEY, VALUE>>,
 }
 
 impl<
-        K,
-        V,
-        P,
-        const KEY_SIZE: usize,
-        const VALUE_SIZE: usize,
-        const PAGE_NO_SIZE: usize,
+        Key,
+        Value,
+        PageNo,
+        const KEY: usize,
+        const VALUE: usize,
+        const PAGE_NO: usize,
         const PAGE_SIZE: usize,
-    > Leaf<K, V, P, KEY_SIZE, VALUE_SIZE, PAGE_NO_SIZE, PAGE_SIZE>
+    > Leaf<Key, Value, PageNo, KEY, VALUE, PAGE_NO, PAGE_SIZE>
 where
-    K: Ord + Key<KEY_SIZE>,
-    V: Key<VALUE_SIZE>,
-    P: PageNo<PAGE_NO_SIZE>,
+    Key: Ord + entry::Key<KEY>,
+    Value: entry::Key<VALUE>,
+    PageNo: flex_page::PageNo<PAGE_NO>,
 {
     pub fn max_entrys_capacity() -> usize {
-        // 7 = 1 node type + 2 node len + 2 `left` + 2 `right` + 2 entry len
-        (PAGE_SIZE - 9) / (KEY_SIZE + VALUE_SIZE)
+        //  node type + node len + ('left' + 'right') + entry len
+        let margin = 1 + 2 + (PAGE_NO * 2) + 2;
+        (PAGE_SIZE - margin) / (KEY + VALUE)
     }
 
     pub fn to_bytes(&self) -> Vec<u8> {
@@ -51,15 +59,15 @@ where
         let mut byte_seeker = ByteSeeker::new(bytes);
         let mut leaf = Self::new();
 
-        leaf.left = P::from_bytes(byte_seeker.buf());
-        leaf.right = P::from_bytes(byte_seeker.buf());
+        leaf.left = PageNo::from_bytes(byte_seeker.buf());
+        leaf.right = PageNo::from_bytes(byte_seeker.buf());
 
         let len = u16::from_le_bytes(byte_seeker.buf());
 
         for _ in 0..len {
-            let bytes = byte_seeker.octets(KEY_SIZE + VALUE_SIZE);
+            let bytes = byte_seeker.octets(KEY + VALUE);
             leaf.entrys
-                .push(Entry::<K, V, KEY_SIZE, VALUE_SIZE>::from_bytes(&bytes));
+                .push(Entry::<Key, Value, KEY, VALUE>::from_bytes(&bytes));
         }
         leaf
     }
@@ -67,23 +75,23 @@ where
     fn new() -> Self {
         Self {
             entrys: Vec::with_capacity(Self::max_entrys_capacity()),
-            left: P::default(),
-            right: P::default(),
+            left: PageNo::default(),
+            right: PageNo::default(),
         }
     }
 
-    fn binary_search(&self, id: &K) -> Result<usize, usize> {
-        self.entrys.binary_search_by_key(&id, |e| &e.key)
+    fn binary_search_by(&self, key: &Key) -> Result<usize, usize> {
+        self.entrys.binary_search_by_key(&key, |entry| &entry.key)
     }
 
     /// Insert and sort `entrys`
-    pub fn insert(&mut self, key: K, value: V, opt: SetOption) -> V {
+    pub fn insert(&mut self, key: Key, value: Value, opt: SetOption) -> Value {
         match opt {
-            SetOption::FindOrInsert => match self.binary_search(&key) {
+            SetOption::FindOrInsert => match self.binary_search_by(&key) {
                 Ok(i) => return self.entrys[i].value,
                 Err(i) => self.entrys.insert(i, Entry { key, value }),
             },
-            SetOption::UpdateOrInsert => match self.binary_search(&key) {
+            SetOption::UpdateOrInsert => match self.binary_search_by(&key) {
                 Ok(i) => self.entrys[i].value = value,
                 Err(_) => return self.insert(key, value, SetOption::FindOrInsert),
             },
@@ -95,7 +103,7 @@ where
         self.entrys.len() >= Self::max_entrys_capacity()
     }
 
-    pub fn split(&mut self) -> (Self, K) {
+    pub fn split(&mut self) -> (Self, Key) {
         let mut right = Self::new();
 
         let mid_point = Self::max_entrys_capacity() / 2;
@@ -105,8 +113,8 @@ where
         (right, mid)
     }
 
-    pub fn find(&self, key: K) -> Option<&Entry<K, V, KEY_SIZE, VALUE_SIZE>> {
-        self.entrys.get(self.binary_search(&key).ok()?)
+    pub fn find(&self, key: Key) -> Option<&Entry<Key, Value, KEY, VALUE>> {
+        self.entrys.get(self.binary_search_by(&key).ok()?)
     }
 }
 

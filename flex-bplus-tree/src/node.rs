@@ -1,33 +1,31 @@
-use flex_page::PageNo;
-
-use crate::{branch::Branch, entry::Key, leaf::Leaf};
+use crate::{branch::Branch, entry, leaf::Leaf};
 
 pub enum Node<
-    K,
-    V,
-    P,
-    const KEY_SIZE: usize,
-    const VALUE_SIZE: usize,
-    const PAGE_NO_SIZE: usize,
+    Key,
+    Value,
+    PageNo,
+    const KEY: usize,
+    const VALUE: usize,
+    const PAGE_NO: usize,
     const PAGE_SIZE: usize,
 > {
-    Leaf(Leaf<K, V, P, KEY_SIZE, VALUE_SIZE, PAGE_NO_SIZE, PAGE_SIZE>),
-    Branch(Branch<K, P, KEY_SIZE, PAGE_NO_SIZE, PAGE_SIZE>),
+    Leaf(Leaf<Key, Value, PageNo, KEY, VALUE, PAGE_NO, PAGE_SIZE>),
+    Branch(Branch<Key, PageNo, KEY, PAGE_NO, PAGE_SIZE>),
 }
 
 impl<
-        K,
-        V,
-        P,
-        const KEY_SIZE: usize,
-        const VALUE_SIZE: usize,
-        const PAGE_NO_SIZE: usize,
+        Key,
+        Value,
+        PageNo,
+        const KEY: usize,
+        const VALUE: usize,
+        const PAGE_NO: usize,
         const PAGE_SIZE: usize,
-    > Node<K, V, P, KEY_SIZE, VALUE_SIZE, PAGE_NO_SIZE, PAGE_SIZE>
+    > Node<Key, Value, PageNo, KEY, VALUE, PAGE_NO, PAGE_SIZE>
 where
-    K: Key<KEY_SIZE> + Ord,
-    V: Key<VALUE_SIZE>,
-    P: PageNo<PAGE_NO_SIZE>,
+    Key: entry::Key<KEY> + Ord,
+    Value: entry::Key<VALUE>,
+    PageNo: flex_page::PageNo<PAGE_NO>,
 {
     fn to_bytes(&self) -> [u8; PAGE_SIZE] {
         let mut buf = [0; PAGE_SIZE];
