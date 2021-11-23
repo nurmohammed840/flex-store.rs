@@ -14,7 +14,7 @@ use std::io::Result;
 pub use leaf::SetOption;
 
 pub struct BPlusTree {
-    pages: Pages<4096>,
+    pages: Pages<u16, 4096>,
     root_page_no: u16,
 }
 
@@ -175,7 +175,7 @@ mod tests {
             },
             Leaf(Vec<u64>),
         }
-        fn build_tree(i: u16, pages: &mut Pages<4096>) -> Result<TreeNode> {
+        fn build_tree(i: u16, pages: &mut Pages<u16, 4096>) -> Result<TreeNode> {
             Ok(match Node::from_bytes(pages.read(i as u64)?) {
                 Node::Branch(b) => TreeNode::Branch {
                     ids: b.ids.into_iter().filter(|&r| r != 0).collect(),

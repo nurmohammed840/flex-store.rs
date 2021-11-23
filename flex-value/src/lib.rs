@@ -124,14 +124,14 @@ impl Value {
                 0 => Value::Boolean(false),
                 1 => Value::Boolean(true),
                 2 => Value::Null,
-                3 => Value::Number(f64::from_le_bytes(seeker.buf().unwrap())),
+                3 => Value::Number(f64::from_le_bytes(seeker.get_buf().unwrap())),
                 4 => {
-                    let len = u32::from_le_bytes(seeker.buf().unwrap());
-                    let bytes = seeker.octets(len as usize).unwrap();
+                    let len = u32::from_le_bytes(seeker.get_buf().unwrap());
+                    let bytes = seeker.get_octets(len as usize).unwrap();
                     Value::String(String::from_utf8(bytes.to_vec())?)
                 }
                 5 => {
-                    let len = u32::from_le_bytes(seeker.buf().unwrap());
+                    let len = u32::from_le_bytes(seeker.get_buf().unwrap());
                     let mut arr = Array::new();
                     for _ in 0..len {
                         arr.push(from(seeker)?)
@@ -139,11 +139,11 @@ impl Value {
                     Value::Array(arr)
                 }
                 6 => {
-                    let len = u32::from_le_bytes(seeker.buf().unwrap());
+                    let len = u32::from_le_bytes(seeker.get_buf().unwrap());
                     let mut obj = Object::new();
                     for _ in 0..len {
                         let key_len = seeker.next().unwrap();
-                        let bytes = seeker.octets(key_len as usize).unwrap();
+                        let bytes = seeker.get_octets(key_len as usize).unwrap();
                         obj.insert(&String::from_utf8(bytes.to_vec())?, from(seeker)?);
                     }
                     Value::Object(obj)

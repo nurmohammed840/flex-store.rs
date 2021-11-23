@@ -5,7 +5,6 @@ pub trait Key<const S: usize>: Copy {
     fn from_bytes(bytes: [u8; S]) -> Self;
 }
 
-#[derive(Debug)]
 pub struct Entry<K, V, const X: usize, const Y: usize> {
     pub key: K,
     pub value: V,
@@ -44,7 +43,6 @@ macro_rules! impl_trait {
 impl_trait!(Key for 4;f32 8;f64);
 impl_trait!(Key for 1;u8 2;u16 4;u32 8;u64 16;u128);
 impl_trait!(Key for 1;i8 2;i16 4;i32 8;i64 16;i128);
-
 impl<const S: usize> Key<S> for [u8; S] {
     fn to_bytes(&self) -> [u8; S] {
         *self
@@ -56,9 +54,15 @@ impl<const S: usize> Key<S> for [u8; S] {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    type Entry = super::Entry<u8, [u8; 9], 1, 9>;
     #[test]
-    fn to_bytes() {}
-    #[test]
-    fn from_bytes() {}
+    fn to_from_bytes() {
+        let entry = Entry {
+            key: 0,
+            value: [1, 2, 3, 4, 5, 6, 7, 8, 9],
+        };
+        let bytes = entry.to_bytes();
+        assert_eq!(bytes.len(), 10);
+        assert_eq!(Entry::from_bytes(&bytes).to_bytes(), bytes);
+    }
 }

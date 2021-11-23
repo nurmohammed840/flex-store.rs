@@ -27,15 +27,15 @@ impl<'a> ByteSeeker<'a> {
         Ok(())
     }
 
-    pub fn buf<const S: usize>(&mut self) -> Option<[u8; S]> {
-        self.octets(S)?.try_into().ok()
-    }
-   
-    pub fn buf_unwrap<const S: usize>(&mut self) -> [u8; S] {
-        self.octets_unwrap(S).try_into().unwrap()
+    pub fn get_buf<const S: usize>(&mut self) -> Option<[u8; S]> {
+        self.get_octets(S)?.try_into().ok()
     }
 
-    pub fn octets(&mut self, n: usize) -> Option<&[u8]> {
+    pub fn buf<const S: usize>(&mut self) -> [u8; S] {
+        self.octets(S).try_into().unwrap()
+    }
+
+    pub fn get_octets(&mut self, n: usize) -> Option<&[u8]> {
         let len = self.cursor + n;
         if len > self.bytes.len() {
             return None;
@@ -45,7 +45,7 @@ impl<'a> ByteSeeker<'a> {
         Some(bytes)
     }
 
-    pub fn octets_unwrap(&mut self, n: usize) -> &[u8] {
+    pub fn octets(&mut self, n: usize) -> &[u8] {
         let len = self.cursor + n;
         let bytes = &self.bytes[self.cursor..len];
         self.cursor = len;
@@ -60,9 +60,9 @@ mod tests {
     fn byte_streem() {
         let mut seeker = ByteSeeker::new(&[1u8, 2, 3, 4, 5, 6]);
         assert_eq!(Some(1), seeker.next());
-        assert_eq!(Some(&[2, 3][..]), seeker.octets(2));
+        assert_eq!(Some(&[2, 3][..]), seeker.get_octets(2));
         assert_eq!(Ok(()), seeker.advance_by(1));
-        assert_eq!(Some([5, 6]), seeker.buf::<2>());
+        assert_eq!(Some([5, 6]), seeker.get_buf::<2>());
         assert_eq!(Err(0), seeker.advance_by(100));
     }
 }
