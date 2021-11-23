@@ -12,16 +12,15 @@ pub struct Entry<K, V, const X: usize, const Y: usize> {
 
 impl<K: Key<X>, V: Key<Y>, const X: usize, const Y: usize> Entry<K, V, X, Y> {
     pub fn to_bytes(&self) -> Vec<u8> {
-        let mut bytes = Vec::with_capacity(size_of::<Self>());
+        let mut bytes = Vec::with_capacity(X + Y);
         bytes.extend(self.key.to_bytes());
         bytes.extend(self.value.to_bytes());
         bytes
     }
     pub fn from_bytes(bytes: &[u8]) -> Self {
-        let l = size_of::<K>();
         Self {
-            key: K::from_bytes(bytes[..l].try_into().unwrap()),
-            value: V::from_bytes(bytes[l..].try_into().unwrap()),
+            key: K::from_bytes(bytes[..X].try_into().unwrap()),
+            value: V::from_bytes(bytes[X..].try_into().unwrap()),
         }
     }
 }
@@ -43,6 +42,7 @@ macro_rules! impl_trait {
 impl_trait!(Key for 4;f32 8;f64);
 impl_trait!(Key for 1;u8 2;u16 4;u32 8;u64 16;u128);
 impl_trait!(Key for 1;i8 2;i16 4;i32 8;i64 16;i128);
+
 impl<const S: usize> Key<S> for [u8; S] {
     fn to_bytes(&self) -> [u8; S] {
         *self

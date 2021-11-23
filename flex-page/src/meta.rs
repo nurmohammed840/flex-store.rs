@@ -13,7 +13,7 @@ impl<const S: usize> RootMeta<S> {
         let mut seeker = ByteSeeker::new(&byte);
 
         let page_size = seeker.next()?;
-        let next = PageNo::u24(seeker.buf::<3>()?);
+        let next = PageNo::u24(seeker.buf()?);
 
         if page_size != S.try_into().ok()? {
             

@@ -62,7 +62,7 @@ mod tests {
         assert_eq!(Some(1), seeker.next());
         assert_eq!(Some(&[2, 3][..]), seeker.get_octets(2));
         assert_eq!(Ok(()), seeker.advance_by(1));
-        assert_eq!(Some([5, 6]), seeker.get_buf::<2>());
+        assert_eq!(Some([5, 6]), seeker.get_buf());
         assert_eq!(Err(0), seeker.advance_by(100));
     }
 }

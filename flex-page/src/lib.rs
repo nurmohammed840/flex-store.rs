@@ -1,3 +1,4 @@
+
 mod page_no;
 
 pub use page_no::*;
@@ -10,7 +11,7 @@ pub struct Pages<T, const S: usize> {
     _marker: PhantomData<T>,
 }
 
-impl<T: PageNo, const S: usize> Pages<T, S> {
+impl<T: PageNo<2>, const S: usize> Pages<T, S> {
     pub fn open(filepath: &str) -> Result<Self> {
         let file = fs::OpenOptions::new()
             .read(true)

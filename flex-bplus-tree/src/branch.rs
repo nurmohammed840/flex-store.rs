@@ -2,21 +2,24 @@ use std::mem;
 
 use crate::entry::Key;
 use byte_seeker::ByteSeeker;
+use flex_page::PageNo;
 
-pub struct Branch<K, const X: usize, const PAGE_SIZE: usize> {
+pub struct Branch<K, P, const KEY_SIZE: usize, const PAGE_NO_SIZE: usize, const PAGE_SIZE: usize> {
     pub keys: Vec<K>,
-    pub childs: Vec<u16>,
+    pub childs: Vec<P>,
 }
 
-impl<K, const X: usize, const PAGE_SIZE: usize> Branch<K, X, PAGE_SIZE>
+impl<K, P, const KEY_SIZE: usize, const PAGE_NO_SIZE: usize, const PAGE_SIZE: usize>
+    Branch<K, P, KEY_SIZE, PAGE_NO_SIZE, PAGE_SIZE>
 where
-    K: PartialOrd + Key<X>,
+    K: PartialOrd + Key<KEY_SIZE>,
+    P: PageNo<PAGE_NO_SIZE>,
 {
     fn max_keys_capacity() -> usize {
-        // PAGE_SIZE -: 1 node type + 2 node len , 2 totel len (keys & childs) / 
+        // PAGE_SIZE -: 1 node type + 2 node len , 2 totel len (keys & childs) /
         // total_size: X (key_size) + 2 (child_size) -
         // 1, Bcs keys_capacity is less by 1
-        ((PAGE_SIZE - 5) / (X + 2)) - 1
+        ((PAGE_SIZE - 5) / (KEY_SIZE + PAGE_NO_SIZE)) - 1
     }
 
     pub fn to_bytes(&self) -> Vec<u8> {
@@ -30,7 +33,7 @@ where
             bytes.extend_from_slice(&k.to_bytes());
         }
         for p in &self.childs {
-            bytes.extend_from_slice(&p.to_le_bytes());
+            bytes.extend_from_slice(&p.to_bytes());
         }
         bytes
     }
@@ -43,11 +46,11 @@ where
 
         // keys
         for _ in 0..keys_len {
-            branch.keys.push(K::from_bytes(seeker.buf::<X>()));
+            branch.keys.push(K::from_bytes(seeker.buf()));
         }
         // childs
         for _ in 0..(keys_len + 1) {
-            branch.childs.push(u16::from_le_bytes(seeker.buf::<2>()));
+            branch.childs.push(P::from_bytes(seeker.buf()));
         }
         branch
     }
@@ -59,11 +62,11 @@ where
         }
     }
 
-    pub fn create_root(id: K, left_child: u16, right_child: u16) -> Self {
+    pub fn create_root(key: K, left: P, right: P) -> Self {
         let mut branch = Branch::new();
-        branch.keys.push(id);
-        branch.childs.push(left_child);
-        branch.childs.push(right_child);
+        branch.keys.push(key);
+        branch.childs.push(left);
+        branch.childs.push(right);
         branch
     }
 
@@ -80,7 +83,7 @@ where
     }
 
     /// Panic: If there in no element in `childs`
-    pub fn update(&mut self, i: usize, (mid, page_no): (K, u16)) {
+    pub fn update(&mut self, i: usize, (mid, page_no): (K, P)) {
         self.keys.insert(i, mid);
         self.childs.insert(i + 1, page_no);
     }
@@ -101,7 +104,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    type Branch = super::Branch<u64, 8, 4096>;
+    type Branch = super::Branch<u64, u16, 8, 2, 4096>;
 
     #[test]
     fn lookup() {
@@ -125,7 +128,7 @@ mod tests {
     #[test]
     fn split() {
         let mut left: Branch = Branch::create_root(0, 0, 1);
-        
+
         for i in 1..Branch::max_keys_capacity() {
             left.update(i, (i as u64, i as u16 + 1));
         }

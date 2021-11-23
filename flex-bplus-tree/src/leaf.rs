@@ -1,32 +1,42 @@
 use crate::entry::*;
 use byte_seeker::ByteSeeker;
+use flex_page::PageNo;
 
 pub enum SetOption {
     UpdateOrInsert,
     FindOrInsert,
 }
 
-pub struct Leaf<K, V, const X: usize, const Y: usize, const PAGE_SIZE: usize> {
-    pub left: u16,
-    pub right: u16,
+pub struct Leaf<K, V, P, const X: usize, const Y: usize, const Z: usize, const PAGE_SIZE: usize> {
+    pub left: P,
+    pub right: P,
     pub entrys: Vec<Entry<K, V, X, Y>>,
 }
 
-impl<K, V, const X: usize, const Y: usize, const PAGE_SIZE: usize> Leaf<K, V, X, Y, PAGE_SIZE>
+impl<
+        K,
+        V,
+        P,
+        const KEY_SIZE: usize,
+        const VALUE_SIZE: usize,
+        const PAGE_NO_SIZE: usize,
+        const PAGE_SIZE: usize,
+    > Leaf<K, V, P, KEY_SIZE, VALUE_SIZE, PAGE_NO_SIZE, PAGE_SIZE>
 where
-    K: Ord + Key<X>,
-    V: Key<Y>,
+    K: Ord + Key<KEY_SIZE>,
+    V: Key<VALUE_SIZE>,
+    P: PageNo<PAGE_NO_SIZE>,
 {
     pub fn max_entrys_capacity() -> usize {
         // 7 = 1 node type + 2 node len + 2 `left` + 2 `right` + 2 entry len
-        (PAGE_SIZE - 9) / (X + Y)
+        (PAGE_SIZE - 9) / (KEY_SIZE + VALUE_SIZE)
     }
 
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut bytes = Vec::with_capacity(PAGE_SIZE);
 
-        bytes.extend_from_slice(&self.left.to_le_bytes());
-        bytes.extend_from_slice(&self.right.to_le_bytes());
+        bytes.extend_from_slice(&self.left.to_bytes());
+        bytes.extend_from_slice(&self.right.to_bytes());
 
         let len: u16 = self.entrys.len().try_into().unwrap();
         bytes.extend_from_slice(&len.to_le_bytes());
@@ -41,14 +51,15 @@ where
         let mut byte_seeker = ByteSeeker::new(bytes);
         let mut leaf = Self::new();
 
-        leaf.left = u16::from_le_bytes(byte_seeker.buf());
-        leaf.right = u16::from_le_bytes(byte_seeker.buf());
+        leaf.left = P::from_bytes(byte_seeker.buf());
+        leaf.right = P::from_bytes(byte_seeker.buf());
 
         let len = u16::from_le_bytes(byte_seeker.buf());
 
         for _ in 0..len {
-            let bytes = byte_seeker.octets(X + Y);
-            leaf.entrys.push(Entry::<K, V, X, Y>::from_bytes(&bytes));
+            let bytes = byte_seeker.octets(KEY_SIZE + VALUE_SIZE);
+            leaf.entrys
+                .push(Entry::<K, V, KEY_SIZE, VALUE_SIZE>::from_bytes(&bytes));
         }
         leaf
     }
@@ -56,8 +67,8 @@ where
     fn new() -> Self {
         Self {
             entrys: Vec::with_capacity(Self::max_entrys_capacity()),
-            left: 0,
-            right: 0,
+            left: P::default(),
+            right: P::default(),
         }
     }
 
@@ -94,7 +105,7 @@ where
         (right, mid)
     }
 
-    pub fn find(&self, key: K) -> Option<&Entry<K, V, X, Y>> {
+    pub fn find(&self, key: K) -> Option<&Entry<K, V, KEY_SIZE, VALUE_SIZE>> {
         self.entrys.get(self.binary_search(&key).ok()?)
     }
 }
@@ -102,7 +113,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::SetOption::*;
-    type Leaf = super::Leaf<u64, u64, 8, 8, 4096>;
+    type Leaf = super::Leaf<u64, u64, u16, 8, 8, 2, 4096>;
 
     #[test]
     fn to_from_bytes() {
