@@ -82,6 +82,3 @@ impl Object {
         &mut self.0
     }
 }
-
-#[test]
-fn test_name() {}

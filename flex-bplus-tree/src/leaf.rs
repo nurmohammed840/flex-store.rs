@@ -1,43 +1,30 @@
-use crate::{entry, entry::Entry};
+use flex_page::PageNo;
 use byte_seeker::ByteSeeker;
+use crate::entry::{Entry, Key};
 
 pub enum SetOption {
     UpdateOrInsert,
     FindOrInsert,
 }
 
-pub struct Leaf<
-    Key,
-    Value,
-    PageNo,
-    const KEY: usize,
-    const VALUE: usize,
-    const PAGE_NO: usize,
-    const PAGE_SIZE: usize,
-> {
-    pub left: PageNo,
-    pub right: PageNo,
-    pub entrys: Vec<Entry<Key, Value, KEY, VALUE>>,
+pub struct Leaf<K, V, P, const KS: usize, const VS: usize, const PS: usize, const PAGE_SIZE: usize>
+{
+    pub left: P,
+    pub right: P,
+    pub entrys: Vec<Entry<K, V, KS, VS>>,
 }
 
-impl<
-        Key,
-        Value,
-        PageNo,
-        const KEY: usize,
-        const VALUE: usize,
-        const PAGE_NO: usize,
-        const PAGE_SIZE: usize,
-    > Leaf<Key, Value, PageNo, KEY, VALUE, PAGE_NO, PAGE_SIZE>
+impl<K, V, P, const KS: usize, const VS: usize, const PS: usize, const PAGE_SIZE: usize>
+    Leaf<K, V, P, KS, VS, PS, PAGE_SIZE>
 where
-    Key: Ord + entry::Key<KEY>,
-    Value: entry::Key<VALUE>,
-    PageNo: flex_page::PageNo<PAGE_NO>,
+    K: Ord + Key<KS>,
+    V: Key<VS>,
+    P: PageNo<PS>,
 {
     pub fn max_entrys_capacity() -> usize {
         //  node type + node len + ('left' + 'right') + entry len
-        let margin = 1 + 2 + (PAGE_NO * 2) + 2;
-        (PAGE_SIZE - margin) / (KEY + VALUE)
+        let margin = 1 + 2 + (PS * 2) + 2;
+        (PAGE_SIZE - margin) / (KS + VS)
     }
 
     pub fn to_bytes(&self) -> Vec<u8> {
@@ -59,15 +46,14 @@ where
         let mut byte_seeker = ByteSeeker::new(bytes);
         let mut leaf = Self::new();
 
-        leaf.left = PageNo::from_bytes(byte_seeker.buf());
-        leaf.right = PageNo::from_bytes(byte_seeker.buf());
+        leaf.left = P::from_bytes(byte_seeker.buf());
+        leaf.right = P::from_bytes(byte_seeker.buf());
 
         let len = u16::from_le_bytes(byte_seeker.buf());
 
         for _ in 0..len {
-            let bytes = byte_seeker.octets(KEY + VALUE);
-            leaf.entrys
-                .push(Entry::<Key, Value, KEY, VALUE>::from_bytes(&bytes));
+            let bytes = byte_seeker.octets(KS + VS);
+            leaf.entrys.push(Entry::<K, V, KS, VS>::from_bytes(&bytes));
         }
         leaf
     }
@@ -75,17 +61,17 @@ where
     fn new() -> Self {
         Self {
             entrys: Vec::with_capacity(Self::max_entrys_capacity()),
-            left: PageNo::default(),
-            right: PageNo::default(),
+            left: P::default(),
+            right: P::default(),
         }
     }
 
-    fn binary_search_by(&self, key: &Key) -> Result<usize, usize> {
+    fn binary_search_by(&self, key: &K) -> Result<usize, usize> {
         self.entrys.binary_search_by_key(&key, |entry| &entry.key)
     }
 
     /// Insert and sort `entrys`
-    pub fn insert(&mut self, key: Key, value: Value, opt: SetOption) -> Value {
+    pub fn insert(&mut self, key: K, value: V, opt: SetOption) -> V {
         match opt {
             SetOption::FindOrInsert => match self.binary_search_by(&key) {
                 Ok(i) => return self.entrys[i].value,
@@ -103,7 +89,7 @@ where
         self.entrys.len() >= Self::max_entrys_capacity()
     }
 
-    pub fn split(&mut self) -> (Self, Key) {
+    pub fn split(&mut self) -> (Self, K) {
         let mut right = Self::new();
 
         let mid_point = Self::max_entrys_capacity() / 2;
@@ -113,7 +99,7 @@ where
         (right, mid)
     }
 
-    pub fn find(&self, key: Key) -> Option<&Entry<Key, Value, KEY, VALUE>> {
+    pub fn find(&self, key: K) -> Option<&Entry<K, V, KS, VS>> {
         self.entrys.get(self.binary_search_by(&key).ok()?)
     }
 }

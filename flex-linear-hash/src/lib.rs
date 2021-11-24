@@ -12,7 +12,7 @@ pub struct BucketIndex {
 }
 
 impl BucketIndex {
-    pub fn get(&self, pages: &mut Pages<u16, 4096>) -> Bucket {
+    pub fn get(&self, pages: &mut Pages<u16, 2, 4096>) -> Bucket {
         pages.read(self.pointer.into()).unwrap().into()
     }
     pub fn _to_bytes(self) -> [u8; 5] {
@@ -67,7 +67,7 @@ impl Bucket {
 // }
 
 pub struct LinearHash {
-    _pages: Pages<u16, 4096>,
+    _pages: Pages<u16, 2, 4096>,
     /// indecate next split pointer index in `bucket_indexes`;
     next: u32,
     bucket_indexes: Vec<BucketIndex>,
@@ -75,7 +75,7 @@ pub struct LinearHash {
 
 impl LinearHash {
     fn _open(filepath: &str) -> std::io::Result<Self> {
-        let _pages: Pages<u16, 4096> = Pages::open(filepath)?;
+        let _pages: Pages<u16, 2, 4096> = Pages::open(filepath)?;
 
         todo!()
         // Ok(Self {

@@ -4,7 +4,7 @@ use std::io::Result;
 use crate::{leaf::Leaf, node::Node};
 
 pub struct Cursor<'a> {
-    pages: &'a mut Pages<u16, 4096>,
+    pages: &'a mut Pages<u16, 2, 4096>,
     leaf: Leaf,
     index: usize,
 }

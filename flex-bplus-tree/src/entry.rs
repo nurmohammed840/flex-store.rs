@@ -1,5 +1,6 @@
 
 pub trait Key<const S: usize>: Copy {
+    const SIZE: usize = S;
     fn to_bytes(&self) -> [u8; S];
     fn from_bytes(bytes: [u8; S]) -> Self;
 }

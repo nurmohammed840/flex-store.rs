@@ -4,28 +4,28 @@ pub enum Node<
     Key,
     Value,
     PageNo,
-    const KEY: usize,
-    const VALUE: usize,
-    const PAGE_NO: usize,
+    const KEY_SIZE: usize,
+    const VALUE_SIZE: usize,
+    const PAGE_NO_SIZE: usize,
     const PAGE_SIZE: usize,
 > {
-    Leaf(Leaf<Key, Value, PageNo, KEY, VALUE, PAGE_NO, PAGE_SIZE>),
-    Branch(Branch<Key, PageNo, KEY, PAGE_NO, PAGE_SIZE>),
+    Leaf(Leaf<Key, Value, PageNo, KEY_SIZE, VALUE_SIZE, PAGE_NO_SIZE, PAGE_SIZE>),
+    Branch(Branch<Key, PageNo, KEY_SIZE, PAGE_NO_SIZE, PAGE_SIZE>),
 }
 
 impl<
         Key,
         Value,
         PageNo,
-        const KEY: usize,
-        const VALUE: usize,
-        const PAGE_NO: usize,
+        const KEY_SIZE: usize,
+        const VALUE_SIZE: usize,
+        const PAGE_NO_SIZE: usize,
         const PAGE_SIZE: usize,
-    > Node<Key, Value, PageNo, KEY, VALUE, PAGE_NO, PAGE_SIZE>
+    > Node<Key, Value, PageNo, KEY_SIZE, VALUE_SIZE, PAGE_NO_SIZE, PAGE_SIZE>
 where
-    Key: entry::Key<KEY> + Ord,
-    Value: entry::Key<VALUE>,
-    PageNo: flex_page::PageNo<PAGE_NO>,
+    Key: entry::Key<KEY_SIZE> + Ord,
+    Value: entry::Key<VALUE_SIZE>,
+    PageNo: flex_page::PageNo<PAGE_NO_SIZE>,
 {
     fn to_bytes(&self) -> [u8; PAGE_SIZE] {
         let mut buf = [0; PAGE_SIZE];
