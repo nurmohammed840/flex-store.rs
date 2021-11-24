@@ -1,6 +1,6 @@
-use flex_page::PageNo;
-use byte_seeker::ByteSeeker;
 use crate::entry::{Entry, Key};
+use byte_seeker::ByteSeeker;
+use flex_page::PageNo;
 
 pub enum SetOption {
     UpdateOrInsert,
@@ -9,9 +9,9 @@ pub enum SetOption {
 
 pub struct Leaf<K, V, P, const KS: usize, const VS: usize, const PS: usize, const PAGE_SIZE: usize>
 {
-    pub left: P,
-    pub right: P,
-    pub entrys: Vec<Entry<K, V, KS, VS>>,
+    left: P,
+    right: P,
+    entrys: Vec<Entry<K, V, KS, VS>>,
 }
 
 impl<K, V, P, const KS: usize, const VS: usize, const PS: usize, const PAGE_SIZE: usize>
@@ -22,8 +22,8 @@ where
     P: PageNo<PS>,
 {
     pub fn max_entrys_capacity() -> usize {
-        //  node type + node len + ('left' + 'right') + entry len
-        let margin = 1 + 2 + (PS * 2) + 2;
+        //  node_type + (left + right) + entrys.len
+        let margin = 1 + (PS + PS) + 2;
         (PAGE_SIZE - margin) / (KS + VS)
     }
 

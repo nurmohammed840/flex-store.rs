@@ -15,18 +15,6 @@ impl<'a> ByteSeeker<'a> {
         Some(byte)
     }
 
-    pub fn advance_by(&mut self, n: usize) -> Result<(), usize> {
-        let len = self.cursor + n;
-        let bytes_len = self.bytes.len();
-        if len > bytes_len {
-            let current_len = self.cursor;
-            self.cursor = bytes_len;
-            return Err(bytes_len - current_len);
-        }
-        self.cursor = len;
-        Ok(())
-    }
-
     pub fn get_buf<const S: usize>(&mut self) -> Option<[u8; S]> {
         self.get_octets(S)?.try_into().ok()
     }
@@ -53,6 +41,10 @@ impl<'a> ByteSeeker<'a> {
     }
 }
 
+
+
+
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -61,8 +53,6 @@ mod tests {
         let mut seeker = ByteSeeker::new(&[1u8, 2, 3, 4, 5, 6]);
         assert_eq!(Some(1), seeker.next());
         assert_eq!(Some(&[2, 3][..]), seeker.get_octets(2));
-        assert_eq!(Ok(()), seeker.advance_by(1));
         assert_eq!(Some([5, 6]), seeker.get_buf());
-        assert_eq!(Err(0), seeker.advance_by(100));
     }
 }

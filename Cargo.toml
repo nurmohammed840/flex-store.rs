@@ -8,5 +8,5 @@ members = [
     "flex-page",
     "flex-btree",
     "flex-value",
-    "flex-linear-hash"
+    "flex-linear-hash",
 ]

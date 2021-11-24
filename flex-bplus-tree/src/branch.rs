@@ -1,11 +1,11 @@
 use crate::entry::Key;
-use flex_page::PageNo;
-use byte_seeker::ByteSeeker;
 
+use byte_seeker::ByteSeeker;
+use flex_page::PageNo;
 
 pub struct Branch<K, P, const KS: usize, const PS: usize, const PAGE_SIZE: usize> {
-    pub keys: Vec<K>,
-    pub childs: Vec<P>,
+    keys: Vec<K>,
+    childs: Vec<P>,
 }
 
 impl<K, P, const KS: usize, const PS: usize, const PAGE_SIZE: usize> Branch<K, P, KS, PS, PAGE_SIZE>
@@ -14,8 +14,8 @@ where
     P: PageNo<PS>,
 {
     fn max_keys_capacity() -> usize {
-        // node type + node len + totel len (keys & childs)
-        let margin = 1 + 2 + 2;
+        // node type + totel len (keys.len + childs.len)
+        let margin = 1 + 2;
         // Minus 1, Bcs keys_capacity is less by 1
         ((PAGE_SIZE - margin) / (KS + PS)) - 1
     }
