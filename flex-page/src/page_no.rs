@@ -9,10 +9,17 @@ pub trait PageNo<const S: usize>: Default + Mul + Into<u32> {
 #[derive(Default)]
 pub struct U24(u32);
 
+impl From<u32> for U24 {
+    fn from(num: u32) -> Self {
+        assert!(num < 16777215);
+        Self(num)
+    }
+}
+
 impl Mul for U24 {
-    type Output = U24;
-    fn mul(self, rhs: Self) -> Self::Output {
-        U24(self.0 * rhs.0)
+    type Output = Self;
+    fn mul(self, rhs: Self) -> Self {
+        (self.0 * rhs.0).into()
     }
 }
 

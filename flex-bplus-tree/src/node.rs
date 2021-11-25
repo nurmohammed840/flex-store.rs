@@ -19,20 +19,49 @@ where
         match self {
             Node::Branch(branch) => {
                 let bytes = branch.to_bytes();
-                buf[1..bytes.len()].copy_from_slice(&bytes);
+                buf[0] = 1;
+                buf[1..=bytes.len()].copy_from_slice(&bytes);
             }
             Node::Leaf(leaf) => {
-                buf[0] = 1;
                 let bytes = leaf.to_bytes();
-                buf[1..bytes.len()].copy_from_slice(&bytes);
+                buf[1..=bytes.len()].copy_from_slice(&bytes);
             }
         }
         buf
     }
     fn from_bytes(bytes: [u8; PAGE_SIZE]) -> Self {
         match bytes[0] {
-            0 => Node::Branch(Branch::from_bytes(&bytes[1..])),
-            _ => Node::Leaf(Leaf::from_bytes(&bytes[1..])),
+            0 => Node::Leaf(Leaf::from_bytes(&bytes[1..])),
+            _ => Node::Branch(Branch::from_bytes(&bytes[1..])),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::leaf::SetOption::*;
+
+    type Node = super::Node<u64, u64, u16, 8, 8, 2, 4096>;
+    type Leaf = crate::leaf::Leaf<u64, u64, u16, 8, 8, 2, 4096>;
+
+    const BYTES: [u8; 4096] = [0; 4096];
+
+    #[test]
+    fn default_node() {
+        let is_leaf_node = match Node::from_bytes(BYTES) {
+            Node::Branch(_) => false,
+            Node::Leaf(_) => true,
+        };
+        assert!(is_leaf_node);
+    }
+
+    #[test]
+    fn to_from_bytes() {
+        let mut left: Leaf = Leaf::new();
+        for i in 1..=255 {
+            left.insert(i, 0, UpdateOrInsert);
+        }
+        let bytes = Node::Leaf(left).to_bytes();
+        assert_eq!(bytes, Node::from_bytes(bytes).to_bytes());
     }
 }

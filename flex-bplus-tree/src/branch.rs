@@ -14,7 +14,7 @@ where
     P: PageNo<PS>,
 {
     fn max_keys_capacity() -> usize {
-        // node type + totel len (keys.len + childs.len)
+        // node_type + totel_len (keys.len + childs.len)
         let margin = 1 + 2;
         // Minus 1, Bcs keys_capacity is less by 1
         ((PAGE_SIZE - margin) / (KS + PS)) - 1
@@ -80,10 +80,10 @@ where
         i
     }
 
-    /// Panic: If there in no element in `childs`
-    pub fn update(&mut self, i: usize, (mid, page_no): (K, P)) {
-        self.keys.insert(i, mid);
-        self.childs.insert(i + 1, page_no);
+    /// ### Panic: যদি `branch.childs`-এ কোনো উপাদান না থাকে, নিশ্চিত করুন যে `branch.childs`-এ অন্তত একটি উপাদান রয়েছে.
+    pub fn update(&mut self, index: usize, (mid, page_no): (K, P)) {
+        self.keys.insert(index, mid);
+        self.childs.insert(index + 1, page_no);
     }
 
     pub fn is_full(&self) -> bool {

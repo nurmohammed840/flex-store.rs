@@ -7,6 +7,7 @@ pub enum SetOption {
     FindOrInsert,
 }
 
+#[derive(Debug)]
 pub struct Leaf<K, V, P, const KS: usize, const VS: usize, const PS: usize, const PAGE_SIZE: usize>
 {
     left: P,
@@ -58,7 +59,7 @@ where
         leaf
     }
 
-    fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             entrys: Vec::with_capacity(Self::max_entrys_capacity()),
             left: P::default(),
@@ -135,6 +136,8 @@ mod tests {
     fn split() {
         let mut left: Leaf = Leaf::new();
 
+        assert_eq!(Leaf::max_entrys_capacity(), 255);
+        
         for i in 1..=255 {
             left.insert(i, 0, UpdateOrInsert);
         }

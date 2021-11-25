@@ -3,7 +3,6 @@ mod branch;
 mod entry;
 mod leaf;
 mod node;
-mod util;
 
 use flex_page::{Pages, U24};
 use std::marker::PhantomData;

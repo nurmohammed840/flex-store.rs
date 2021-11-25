@@ -5,6 +5,7 @@ pub trait Key<const S: usize>: Copy {
     fn from_bytes(bytes: [u8; S]) -> Self;
 }
 
+#[derive(Debug)]
 pub struct Entry<K, V, const X: usize, const Y: usize> {
     pub key: K,
     pub value: V,
