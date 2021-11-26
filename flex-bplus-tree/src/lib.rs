@@ -25,13 +25,15 @@ where
     V: Key<VS>,
     P: PageNo<PS>,
 {
-    fn open(filepath: &str) -> Self {
-        Self {
-            pages: Pages::<P, PS, PAGE_SIZE>::open(filepath).unwrap(),
+    fn open(filepath: &str) -> Result<Self, std::io::Error> {
+        let mut pages = Pages::<P, PS, PAGE_SIZE>::open(filepath)?;
+        
+        Ok(Self {
+            pages,
             root_page_no: todo!(),
             _key_marker: PhantomData,
             _value_marker: PhantomData,
-        }
+        })
     }
 }
 
@@ -57,5 +59,3 @@ macro_rules! BPlusTree {
         >
     };
 }
-
-// ------------------------------------------------------------------

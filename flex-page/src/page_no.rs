@@ -44,7 +44,7 @@ macro_rules! impl_trait {
     )*)
 }
 
-impl_trait!(PageNo for u16:2 u32:4);
+impl_trait!(PageNo for u8:1 u16:2 u32:4);
 
 impl PageNo<3> for U24 {
     fn to_bytes(&self) -> [u8; 3] {
