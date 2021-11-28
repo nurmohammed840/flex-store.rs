@@ -1,11 +1,13 @@
+#![feature(try_trait_v2)]
+
 mod array;
 mod object;
 mod prelude;
 
+use byte_seeker::{BytesReader, LittleEndian};
 use std::{num::TryFromIntError, string::FromUtf8Error};
 
 pub use array::Array;
-use byte_seeker::ByteSeeker;
 pub use object::Object;
 pub use prelude::*;
 
@@ -19,6 +21,23 @@ pub enum Value {
     Object(Object),
 }
 
+macro_rules! impl_methods {
+    [$($method:ident : $x:ident,$y:ident -> $t:ty)*] => ($(
+        #[inline]
+        pub fn $x(&self) -> &$t { match self { Value::$method(v) => v, _ => panic!("Invalid Type") } }
+        #[inline]
+        pub fn $y(&self) -> Option<&$t> { match self { Value::$method(v) => Some(v), _ => None } }
+    )*);
+}
+macro_rules! impl_methods_mut {
+    [$($method:ident : $x:ident,$y:ident -> $t:ty)*] => ($(
+        #[inline]
+        pub fn $x(&mut self) -> &mut $t { match self { Value::$method(v) => v, _ => panic!("Invalid Type") } }
+        #[inline]
+        pub fn $y(&mut self) -> Option<&mut $t> { match self { Value::$method(v) => Some(v), _ => None } }
+    )*);
+}
+
 impl Value {
     pub fn new() -> Self {
         Self::Null
@@ -28,54 +47,18 @@ impl Value {
         *self = value.to_flex_val();
     }
 
-    pub fn as_bool(&self) -> Option<bool> {
-        match self {
-            Value::Boolean(boolean) => Some(*boolean),
-            _ => None,
-        }
-    }
+    impl_methods!(
+        Array: arr, as_arr -> Array
+        String: str, as_str -> str
+        Number: num, as_num -> f64
+        Object: obj, as_obj -> Object
+        Boolean: bool, as_bool -> bool
+    );
 
-    pub fn as_num(&self) -> Option<f64> {
-        match self {
-            Value::Number(num) => Some(*num),
-            _ => None,
-        }
-    }
-
-    pub fn as_str(&self) -> Option<&str> {
-        match self {
-            Value::String(string) => Some(string),
-            _ => None,
-        }
-    }
-
-    pub fn as_arr(&self) -> Option<&Array> {
-        match self {
-            Value::Array(arr) => Some(arr),
-            _ => None,
-        }
-    }
-
-    pub fn as_arr_mut(&mut self) -> Option<&mut Array> {
-        match self {
-            Value::Array(arr) => Some(arr),
-            _ => None,
-        }
-    }
-
-    pub fn as_obj(&self) -> Option<&Object> {
-        match self {
-            Value::Object(obj) => Some(obj),
-            _ => None,
-        }
-    }
-
-    pub fn as_obj_mut(&mut self) -> Option<&mut Object> {
-        match self {
-            Value::Object(obj) => Some(obj),
-            _ => None,
-        }
-    }
+    impl_methods_mut!(
+        Array: arr_mut, as_arr_mut -> Array
+        Object: obj_mut, as_obj_mut -> Object
+    );
 
     pub fn to_byte(&self) -> Result<Vec<u8>, TryFromIntError> {
         let bytes = match self {
@@ -118,33 +101,32 @@ impl Value {
     }
 
     pub fn from_byte(bytes: Vec<u8>) -> Result<Value, FromUtf8Error> {
-        let mut byte_seeker = ByteSeeker::new(&bytes);
-        fn from(seeker: &mut ByteSeeker) -> Result<Value, FromUtf8Error> {
-            let value = match seeker.next().unwrap() {
+        fn from(reader: &mut BytesReader) -> Result<Value, FromUtf8Error> {
+            let value = match reader.next().unwrap() {
                 0 => Value::Boolean(false),
                 1 => Value::Boolean(true),
                 2 => Value::Null,
-                3 => Value::Number(f64::from_le_bytes(seeker.get_buf().unwrap())),
+                3 => Value::Number(reader.read()),
                 4 => {
-                    let len = u32::from_le_bytes(seeker.get_buf().unwrap());
-                    let bytes = seeker.get_octets(len as usize).unwrap();
+                    let len: u32 = reader.read();
+                    let bytes = reader.bytes(len as usize);
                     Value::String(String::from_utf8(bytes.to_vec())?)
                 }
                 5 => {
-                    let len = u32::from_le_bytes(seeker.get_buf().unwrap());
+                    let len: u32 = reader.read();
                     let mut arr = Array::new();
                     for _ in 0..len {
-                        arr.push(from(seeker)?)
+                        arr.push(from(reader)?)
                     }
                     Value::Array(arr)
                 }
                 6 => {
-                    let len = u32::from_le_bytes(seeker.get_buf().unwrap());
+                    let len: u32 = reader.read();
                     let mut obj = Object::new();
                     for _ in 0..len {
-                        let key_len = seeker.next().unwrap();
-                        let bytes = seeker.get_octets(key_len as usize).unwrap();
-                        obj.insert(&String::from_utf8(bytes.to_vec())?, from(seeker)?);
+                        let key_len = reader.next().unwrap();
+                        let bytes = reader.bytes(key_len as usize);
+                        obj.insert(&String::from_utf8(bytes.to_vec())?, from(reader)?);
                     }
                     Value::Object(obj)
                 }
@@ -152,7 +134,7 @@ impl Value {
             };
             Ok(value)
         }
-        from(&mut byte_seeker)
+        from(&mut BytesReader::new(&bytes))
     }
 }
 

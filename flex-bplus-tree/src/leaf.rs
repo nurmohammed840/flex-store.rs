@@ -1,5 +1,5 @@
 use crate::entry::{Entry, Key};
-use byte_seeker::ByteSeeker;
+use byte_seeker::BytesReader;
 use flex_page::PageNo;
 
 pub enum SetOption {
@@ -44,16 +44,16 @@ where
     }
 
     pub fn from_bytes(bytes: &[u8]) -> Self {
-        let mut byte_seeker = ByteSeeker::new(bytes);
+        let mut byte_seeker = BytesReader::new(bytes);
         let mut leaf = Self::new();
 
-        leaf.left = P::from_bytes(byte_seeker.buf());
-        leaf.right = P::from_bytes(byte_seeker.buf());
+        leaf.left = P::from_bytes(byte_seeker.get_buf().unwrap());
+        leaf.right = P::from_bytes(byte_seeker.get_buf().unwrap());
 
-        let len = u16::from_le_bytes(byte_seeker.buf());
+        let len = u16::from_le_bytes(byte_seeker.get_buf().unwrap());
 
         for _ in 0..len {
-            let bytes = byte_seeker.octets(KS + VS);
+            let bytes = byte_seeker.get_bytes(KS + VS).unwrap();
             leaf.entrys.push(Entry::<K, V, KS, VS>::from_bytes(&bytes));
         }
         leaf

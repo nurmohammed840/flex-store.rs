@@ -1,6 +1,6 @@
 use crate::entry::Key;
 
-use byte_seeker::ByteSeeker;
+use byte_seeker::BytesReader;
 use flex_page::PageNo;
 
 pub struct Branch<K, P, const KS: usize, const PS: usize, const PAGE_SIZE: usize> {
@@ -37,18 +37,18 @@ where
     }
 
     pub fn from_bytes(bytes: &[u8]) -> Self {
-        let mut seeker = ByteSeeker::new(bytes);
+        let mut seeker = BytesReader::new(bytes);
         let mut branch = Self::new();
 
-        let keys_len = u16::from_le_bytes(seeker.buf()) / 2;
+        let keys_len = u16::from_le_bytes(seeker.get_buf().unwrap()) / 2;
 
         // keys
         for _ in 0..keys_len {
-            branch.keys.push(K::from_bytes(seeker.buf()));
+            branch.keys.push(K::from_bytes(seeker.get_buf().unwrap()));
         }
         // childs
         for _ in 0..(keys_len + 1) {
-            branch.childs.push(P::from_bytes(seeker.buf()));
+            branch.childs.push(P::from_bytes(seeker.get_buf().unwrap()));
         }
         branch
     }

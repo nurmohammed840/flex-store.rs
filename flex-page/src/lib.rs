@@ -3,51 +3,84 @@
 mod meta;
 mod page_no;
 
+use byte_seeker::LittleEndian;
+use meta::SizeInfo;
 pub use page_no::*;
-use std::{fs, io::*, marker::PhantomData};
 
-pub struct Pages<T, const PAGE_NO_SIZE: usize, const S: usize> {
-    file: fs::File,
+use std::{
+    collections::HashMap,
+    fs::{remove_file, File},
+    io::*,
+    marker::PhantomData,
+};
+
+pub struct Pages<P, const PS: usize, const PAGE_SIZE: usize> {
+    file: File,
     /// First byte of meta data indicate, If it was newly created file or not...
-    metadata: [u8; S],
-    _marker: PhantomData<T>,
+    metadata: [u8; PAGE_SIZE],
+
+    _metadata: HashMap<String, Vec<u8>>,
+
+    _marker: PhantomData<P>,
 }
 
-impl<T, const PS: usize, const PAGE_SIZE: usize> Pages<T, PS, PAGE_SIZE>
+impl<P, const PS: usize, const PAGE_SIZE: usize> Pages<P, PS, PAGE_SIZE>
 where
-    T: PageNo<PS>,
+    P: PageNo<PS>,
 {
-    pub fn open(path: &str) -> Result<Self> {
-        let size_info = meta::size_info(PS, PAGE_SIZE);
+    fn w(&mut self) {
+        struct SizeInfo {
+            page_no_size: u8,
+            page_size: u32,
+        }
 
-        let file = match fs::File::open(path) {
+        let mut buf = [0; PAGE_SIZE];
+        self.file.read(&mut buf);
+        let mut seeker = byte_seeker::BytesReader::new(&buf);
+
+        let page_no_size = seeker.read();
+        let [x, y, z] = seeker.get_buf().unwrap();
+
+        let size_info = SizeInfo {
+            page_no_size,
+            page_size: u32::from_le_bytes([x, y, z, 0]),
+        };
+
+        // let len =
+    }
+
+    pub fn open(path: &str) -> Result<Self> {
+        let size_info = SizeInfo::new(PS, PAGE_SIZE);
+
+        let mut file = match File::open(path) {
             Ok(file) => file,
             Err(_) => {
-                let mut file = fs::File::create(path)?;
-                file.write(&size_info)?;
+                let mut file = File::create(path)?;
+                file.write(&size_info.to_buf())?;
                 file
             }
         };
-
-        let mut file = fs::OpenOptions::new()
-            .read(true)
-            .write(true)
-            .create(true)
-            .open(path)?;
 
         if file.metadata()?.len() % PAGE_SIZE as u64 != 0 {
             return Err(ErrorKind::InvalidData.into());
         }
 
-        let mut metadata = [0; PAGE_SIZE];
-        file.read(&mut metadata)?;
+        let mut buf = [0; 4];
+        file.read(&mut buf);
+        let _size_info = SizeInfo::from(buf);
 
-        // if metadata.starts_with([needle]) {}
+        if size_info != _size_info {
+            return Err(Error::new(
+                ErrorKind::InvalidInput,
+                format!("Expected: {:#?}", _size_info),
+            ));
+        }
 
         Ok(Self {
             file,
-            metadata,
+            metadata: [0; PAGE_SIZE],
             _marker: PhantomData,
+            _metadata: HashMap::new(),
         })
     }
 
@@ -67,7 +100,7 @@ where
         Ok(())
     }
 
-    // fn seek_page(file: &mut fs::File, page_no: T) -> Result<u64> {
+    // fn seek_page(file: &mut File, page_no: T) -> Result<u64> {
     //     file.seek(SeekFrom::Start(PAGE_SIZE as u64 * page_no.into() as u64))
     // }
 
@@ -75,7 +108,7 @@ where
     //     Self::seek_page(&mut self.file, page_no)
     // }
 
-    // fn read_page(file: &mut fs::File, page_no: T) -> Result<[u8; PAGE_SIZE]> {
+    // fn read_page(file: &mut File, page_no: T) -> Result<[u8; PAGE_SIZE]> {
     //     Self::seek_page(file, page_no)?;
     //     let mut buf = [0u8; PAGE_SIZE];
     //     file.read(&mut buf)?;
@@ -144,7 +177,7 @@ mod tests {
             }
         }
 
-        fs::remove_file(FILE_PATH)?;
+        remove_file(FILE_PATH)?;
         Ok(())
     }
 
@@ -158,7 +191,7 @@ mod tests {
         pages.write(page_on, msg)?;
         assert_eq!(pages.read(page_on)?, *msg);
 
-        fs::remove_file("data2.idx")?;
+        remove_file("data2.idx")?;
         Ok(())
     }
 }
