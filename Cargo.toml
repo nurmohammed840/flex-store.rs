@@ -3,6 +3,8 @@
 members = [
     "flex-bplus-tree",
 
+    "flex-trie",
+
     "byte-seeker",
     "flex-tools",
     "flex-page",

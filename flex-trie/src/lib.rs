@@ -1,4 +1,4 @@
-
+#![allow(warnings)]
 #[derive(Debug, Clone)]
 struct TrieMap<T> {
     key: char,
