@@ -7,3 +7,4 @@ edition = "2021"
 
 [dependencies]
 flex-page = { path = "../flex-page" }
+byte-seeker = { path = "../byte-seeker" }

@@ -1,10 +1,14 @@
 [workspace]
 
 members = [
+    "flex-bplus-tree",
+
+    "flex-trie",
+
     "byte-seeker",
     "flex-tools",
     "flex-page",
     "flex-btree",
     "flex-value",
-    "flex-linear-hash"
+    "flex-linear-hash",
 ]

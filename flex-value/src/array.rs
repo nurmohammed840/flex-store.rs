@@ -1,91 +1,80 @@
-use crate::{prelude::*, Value};
-use std::slice;
+use std::ops::{Index, IndexMut};
 
-#[derive(Clone, Default, PartialEq)]
+use crate::Value;
+
+#[derive(Clone, Default, PartialEq, Debug, PartialOrd)]
 pub struct Array(Vec<Value>);
 
+crate::utils::extends!(Array: Vec<Value>);
+crate::utils::derives!(Array: Display);
+crate::utils::derives!(Array: New);
+
+macro_rules! impl_method {
+    [$name:ident $($arg:ident: $t:ty)*] => {
+        #[inline]
+        pub fn $name<T: Into<Value>>(&mut self, $($arg: $t,)* value: T) {
+            self.0.$name($($arg,)* value.into());
+        }
+    };
+}
+
 impl Array {
-    #[inline]
-    pub fn new() -> Self {
-        Array::default()
-    }
+    impl_method!(insert index: usize);
+    impl_method!(resize new_len: usize);
+    impl_method!(fill);
+    impl_method!(push);
 
-    #[inline]
-    pub fn push<T: FlexVal>(&mut self, value: T) {
-        self.0.push(value.to_flex_val())
+    pub fn to_string(&self) -> String {
+        let mut string = "[".to_string();
+        let mut iter = self.iter();
+        if let Some(value) = iter.next() {
+            string.push_str(&value.to_string());
+        }
+        for value in iter {
+            string.push_str(&format!(",{}", value.to_string()));
+        }
+        string.push(']');
+        string
     }
+}
 
+impl Index<usize> for Array {
+    type Output = Value;
     #[inline]
-    pub fn first(&mut self) -> &Value {
-        self.0.first().unwrap_or(&Value::Null)
-    }
-
-    #[inline]
-    pub fn last(&mut self) -> &Value {
-        self.0.last().unwrap_or(&Value::Null)
-    }
-
-    #[inline]
-    pub fn pop(&mut self) -> Value {
-        self.0.pop().unwrap_or(Value::Null)
-    }
-
-    #[inline]
-    pub fn get(&self, index: usize) -> &Value {
+    fn index(&self, index: usize) -> &Self::Output {
         self.0.get(index).unwrap_or(&Value::Null)
     }
+}
 
+impl IndexMut<usize> for Array {
     #[inline]
-    pub fn insert<T: FlexVal>(&mut self, index: usize, value: T) {
-        self.0.insert(index, value.to_flex_val());
-    }
-
-    #[inline]
-    pub fn get_mut(&mut self, index: usize) -> Option<&mut Value> {
-        self.0.get_mut(index)
-    }
-
-    #[inline]
-    pub fn fill<T: FlexVal>(&mut self, value: T) {
-        self.0.fill(value.to_flex_val());
-    }
-
-    #[inline]
-    pub fn remove(&mut self, index: usize) -> Value {
-        if self.len() >= index {
-            return Value::Null;
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+        if !self.0.get(index).is_some() {
+            self.resize(index + 1, Value::Null);
         }
-        self.0.remove(index)
+        self.0.get_mut(index).unwrap()
     }
+}
 
+impl<T: Into<Value>> FromIterator<T> for Array {
     #[inline]
-    pub fn iter(&self) -> slice::Iter<Value> {
-        self.0.iter()
+    fn from_iter<R: IntoIterator<Item = T>>(iter: R) -> Self {
+        let mut arr = Array::default();
+        for v in iter {
+            arr.push(v);
+        }
+        arr
     }
-
+}
+impl<T: Into<Value>, const S: usize> From<[T; S]> for Array {
     #[inline]
-    pub fn iter_mut(&mut self) -> slice::IterMut<Value> {
-        self.0.iter_mut()
+    fn from(arr: [T; S]) -> Self {
+        arr.into_iter().collect()
     }
-
+}
+impl<T: Into<Value>> From<Vec<T>> for Array {
     #[inline]
-    pub fn clear(&mut self) {
-        self.0.clear()
+    fn from(arr: Vec<T>) -> Self {
+        arr.into_iter().collect()
     }
-
-    #[inline]
-    pub fn len(&self) -> usize {
-        self.0.len()
-    }
-
-    #[inline]
-    pub fn own(&self) -> &Vec<Value> {
-        &self.0
-    }
-
-    #[inline]
-    pub fn own_mut(&mut self) -> &mut Vec<Value> {
-        &mut self.0
-    }
-
 }

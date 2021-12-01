@@ -1,87 +1,52 @@
-use crate::{prelude::*, Value};
-use std::collections::{btree_map, BTreeMap};
+use std::ops::{Index, IndexMut};
 
-#[derive(Default, Clone, PartialEq)]
-pub struct Object(BTreeMap<String, Value>);
+use crate::{
+    utils::{derives, extends},
+    Value,
+};
+
+type Map<K, V> = std::collections::BTreeMap<K, V>;
+
+#[derive(Default, Clone, PartialEq, Debug, PartialOrd)]
+pub struct Object(Map<String, Value>);
+
+extends!(Object: Map<String, Value>);
+derives!(Object: Display);
+derives!(Object: New);
 
 impl Object {
     #[inline]
-    pub fn new() -> Self {
-        Object::default()
+    pub fn insert<V: Into<Value>>(&mut self, key: &str, value: V) -> Option<Value> {
+        self.0.insert(key.to_string(), value.into())
     }
 
-    #[inline]
-    pub fn clear(&mut self) {
-        self.0.clear()
-    }
-
-    #[inline]
-    pub fn remove(&mut self, key: &str) -> Value {
-        self.0.remove(key).unwrap_or(Value::Null)
-    }
-
-    #[inline]
-    pub fn iter(&self) -> btree_map::Iter<String, Value> {
-        self.0.iter()
-    }
-
-    #[inline]
-    pub fn iter_mut(&mut self) -> btree_map::IterMut<String, Value> {
-        self.0.iter_mut()
-    }
-
-    #[inline]
-    pub fn get(&self, key: &str) -> &Value {
-        self.0.get(key).unwrap_or(&Value::Null)
-    }
-
-    #[inline]
-    pub fn get_mut(&mut self, key: &str) -> Option<&mut Value> {
-        self.0.get_mut(key)
-    }
-
-    #[inline]
-    pub fn insert<V: FlexVal>(&mut self, key: &str, value: V) -> Value {
-        self.0
-            .insert(key.to_string(), value.to_flex_val())
-            .unwrap_or(Value::Null)
-    }
-
-    #[inline]
-    pub fn keys(&self) -> btree_map::Keys<String, Value> {
-        self.0.keys()
-    }
-
-    #[inline]
-    pub fn values(&self) -> btree_map::Values<String, Value> {
-        self.0.values()
-    }
-
-    #[inline]
-    pub fn values_mut(&mut self) -> btree_map::ValuesMut<String, Value> {
-        self.0.values_mut()
-    }
-
-    #[inline]
-    pub fn contains_key(&self, key: &str) -> bool {
-        self.0.contains_key(key)
-    }
-
-    #[inline]
-    pub fn len(&self) -> usize {
-        self.0.len()
-    }
-
-    #[inline]
-    pub fn own(&self) -> &BTreeMap<String, Value> {
-        &self.0
-    }
-
-    #[inline]
-    pub fn own_mut(&mut self) -> &mut BTreeMap<String, Value> {
-        &mut self.0
+    pub fn to_string(&self) -> String {
+        let mut string = "{".to_string();
+        let mut iter = self.iter();
+        if let Some((key, value)) = iter.next() {
+            string.push_str(&format!("{:?}:{}", key, value.to_string()));
+        }
+        for (key, value) in iter {
+            string.push_str(&format!(",{:?}:{}", key, value.to_string()));
+        }
+        string.push('}');
+        string
     }
 }
 
-#[test]
-fn test_name() {}
+impl Index<&str> for Object {
+    type Output = Value;
+    #[inline]
+    fn index(&self, key: &str) -> &Self::Output {
+        self.0.get(key).unwrap_or(&Value::Null)
+    }
+}
+impl IndexMut<&str> for Object {
+    #[inline]
+    fn index_mut(&mut self, key: &str) -> & mut Self::Output {
+        if !self.0.contains_key(key) {
+            self.insert(key, Value::Null);
+        }
+        self.0.get_mut(key).unwrap()
+    }
+}
