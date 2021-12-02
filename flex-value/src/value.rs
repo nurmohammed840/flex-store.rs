@@ -49,7 +49,7 @@ impl PartialEq<&str> for Value {
 impl PartialOrd<&str> for Value {
     fn partial_cmp(&self, other: &&str) -> Option<std::cmp::Ordering> {
         match self {
-            Self::Str(l0) => l0.partial_cmp(&other.to_string()),
+            Self::Str(s) => s[..].partial_cmp(other),
             _ => None,
         }
     }

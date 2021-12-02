@@ -42,7 +42,7 @@ impl Index<usize> for Array {
     type Output = Value;
     #[inline]
     fn index(&self, index: usize) -> &Self::Output {
-        self.0.get(index).unwrap_or(&Value::Null)
+        self.0.get(index).unwrap()
     }
 }
 

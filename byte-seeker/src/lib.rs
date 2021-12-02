@@ -5,17 +5,17 @@ pub struct BytesReader<'a> {
     cursor: usize,
 }
 
+
 impl<'a> BytesReader<'a> {
     pub fn new(bytes: &'a [u8]) -> Self {
         Self { bytes, cursor: 0 }
     }
-
+    #[inline]
     pub fn next(&mut self) -> Option<u8> {
         let byte = *self.bytes.get(self.cursor)?;
         self.cursor += 1;
         Some(byte)
     }
-
     #[inline]
     pub fn advance(&mut self, n: usize) -> Option<usize> {
         let len = self.cursor + n;
