@@ -38,7 +38,7 @@ impl Index<&str> for Object {
     type Output = Value;
     #[inline]
     fn index(&self, key: &str) -> &Self::Output {
-        self.0.get(key).unwrap_or(&Value::Null)
+        self.0.get(key).unwrap()
     }
 }
 impl IndexMut<&str> for Object {

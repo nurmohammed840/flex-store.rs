@@ -16,16 +16,16 @@ impl From<u32> for U24 {
     }
 }
 
+impl From<U24> for u32 {
+    fn from(u24: U24) -> Self {
+        u24.0
+    }
+}
+
 impl Mul for U24 {
     type Output = Self;
     fn mul(self, rhs: Self) -> Self {
         (self.0 * rhs.0).into()
-    }
-}
-
-impl Into<u32> for U24 {
-    fn into(self) -> u32 {
-        self.0
     }
 }
 
