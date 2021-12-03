@@ -30,7 +30,6 @@ impl Metadata {
         if size_info != self.size_info {
             return Err(size_info);
         }
-
         let map_len: u16 = reader.read();
         self.map = HashMap::with_capacity(map_len.into());
 
@@ -61,11 +60,20 @@ impl Metadata {
     }
 
     pub fn insert<T: Hash>(&mut self, key: T, value: Vec<u8>) {
-        let mut hasher = DefaultHasher::new();
-        key.hash(&mut hasher);
-        let hash = hasher.finish();
-        self.map.insert(hash, value);
+        self.map.insert(create_hash(key), value);
     }
+    pub fn get<T: Hash>(&self, key: T) -> Option<&Vec<u8>> {
+        self.map.get(&create_hash(key))
+    }
+    pub fn get_mut<T: Hash>(&mut self, key: T) -> Option<&mut Vec<u8>> {
+        self.map.get_mut(&create_hash(key))
+    }
+}
+
+fn create_hash<T: Hash>(key: T) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    key.hash(&mut hasher);
+    hasher.finish()
 }
 
 #[derive(PartialEq, Debug)]

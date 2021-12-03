@@ -1,26 +1,18 @@
-use std::ops::{Index, IndexMut};
+use crate::Value;
 
-use crate::{
-    utils::{derives, extends},
-    Value,
-};
+pub type Map = std::collections::HashMap<String, Value>;
 
-type Map<K, V> = std::collections::BTreeMap<K, V>;
+pub trait Object {
+    fn set<K: ToString, V: Into<Value>>(&mut self, key: K, value: V) -> Option<Value>;
+    fn to_string(&self) -> String;
+}
 
-#[derive(Default, Clone, PartialEq, Debug, PartialOrd)]
-pub struct Object(Map<String, Value>);
-
-extends!(Object: Map<String, Value>);
-derives!(Object: Display);
-derives!(Object: New);
-
-impl Object {
+impl Object for Map {
     #[inline]
-    pub fn insert<V: Into<Value>>(&mut self, key: &str, value: V) -> Option<Value> {
-        self.0.insert(key.to_string(), value.into())
+    fn set<K: ToString, V: Into<Value>>(&mut self, key: K, value: V) -> Option<Value> {
+        self.insert(key.to_string(), value.into())
     }
-
-    pub fn to_string(&self) -> String {
+    fn to_string(&self) -> String {
         let mut string = "{".to_string();
         let mut iter = self.iter();
         if let Some((key, value)) = iter.next() {
@@ -31,22 +23,5 @@ impl Object {
         }
         string.push('}');
         string
-    }
-}
-
-impl Index<&str> for Object {
-    type Output = Value;
-    #[inline]
-    fn index(&self, key: &str) -> &Self::Output {
-        self.0.get(key).unwrap()
-    }
-}
-impl IndexMut<&str> for Object {
-    #[inline]
-    fn index_mut(&mut self, key: &str) -> & mut Self::Output {
-        if !self.0.contains_key(key) {
-            self.insert(key, Value::Null);
-        }
-        self.0.get_mut(key).unwrap()
     }
 }

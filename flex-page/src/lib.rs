@@ -16,10 +16,31 @@ pub struct Pages<P, const PS: usize, const PAGE_SIZE: usize> {
     _marker: PhantomData<P>,
 }
 
+impl<P, const PS: usize, const PAGE_SIZE: usize> Drop for Pages<P, PS, PAGE_SIZE> {
+    fn drop(&mut self) {
+        
+    }
+}
+
 impl<P, const PS: usize, const PAGE_SIZE: usize> Pages<P, PS, PAGE_SIZE>
 where
     P: PageNo<PS>,
 {
+    fn read_meta(&mut self) -> Result<Vec<u8>> {
+        let mut raw_mata: Vec<u8> = Vec::with_capacity(PAGE_SIZE);
+        let mut mata_page_no = 0;
+        loop {
+            let buf = self.read_page(mata_page_no)?;
+            // every mata pages contain first 4 byte as next page pointer.
+            mata_page_no = u32::from_le_bytes(buf[..4].try_into().unwrap());
+            raw_mata.extend_from_slice(&buf[4..]);
+            if mata_page_no == 0 {
+                break;
+            }
+        }
+        Ok(raw_mata)
+    }
+
     pub fn open(path: &str) -> Result<Self> {
         let _metadata = Metadata::new(PS, PAGE_SIZE);
 
@@ -57,14 +78,6 @@ where
         }
 
         Ok(pages)
-
-        // let size_info_nbytes: [u8; 4] = mata.drain(0..4).try_into().unwrap();
-
-        // let _size_info = SizeInfo::from(buf);
-
-        // if size_info != _size_info {
-
-        // }
     }
 
     pub fn metadata(&mut self) -> &mut [u8] {
@@ -82,14 +95,6 @@ where
         self.file.set_len(PAGE_SIZE as u64)?;
         Ok(())
     }
-
-    // fn seek_page(file: &mut File, page_no: T) -> Result<u64> {
-    //     file.seek(SeekFrom::Start(PAGE_SIZE as u64 * page_no.into() as u64))
-    // }
-
-    // fn seek(&mut self, page_no: T) -> Result<u64> {
-    //     Self::seek_page(&mut self.file, page_no)
-    // }
 
     pub fn _read(&mut self, page_no: P) -> Result<[u8; PAGE_SIZE]> {
         self.read_page(page_no.into())

@@ -5,7 +5,6 @@ pub struct BytesReader<'a> {
     cursor: usize,
 }
 
-
 impl<'a> BytesReader<'a> {
     pub fn new(bytes: &'a [u8]) -> Self {
         Self { bytes, cursor: 0 }
@@ -62,7 +61,6 @@ macro_rules! impl_trait {
     )*);
 }
 impl_trait!(LittleEndian BigEndian NativeEndian);
-
 
 #[cfg(test)]
 mod tests {
