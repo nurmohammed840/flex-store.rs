@@ -1,5 +1,7 @@
 #![allow(warnings)]
 
+// 0 indicate last page.
+
 mod meta;
 mod page_no;
 
@@ -16,29 +18,59 @@ pub struct Pages<P, const PS: usize, const PAGE_SIZE: usize> {
     _marker: PhantomData<P>,
 }
 
-impl<P, const PS: usize, const PAGE_SIZE: usize> Drop for Pages<P, PS, PAGE_SIZE> {
-    fn drop(&mut self) {
-        
+#[test]
+fn test_name() {
+    let vec: Vec<u16> = (0..50).collect();
+    for ele in vec.chunks(8) {
+        println!("{:#?}", ele);
     }
 }
+
+// 0
+// [1 2] [3 4] [5 6] [7]
 
 impl<P, const PS: usize, const PAGE_SIZE: usize> Pages<P, PS, PAGE_SIZE>
 where
     P: PageNo<PS>,
 {
-    fn read_meta(&mut self) -> Result<Vec<u8>> {
-        let mut raw_mata: Vec<u8> = Vec::with_capacity(PAGE_SIZE);
-        let mut mata_page_no = 0;
+    fn write_meta(&mut self, data: Vec<u8>) -> Result<()> {
+        let mut page_no = 0;
+        let mut iter = data.chunks_exact(PAGE_SIZE);
         loop {
-            let buf = self.read_page(mata_page_no)?;
-            // every mata pages contain first 4 byte as next page pointer.
-            mata_page_no = u32::from_le_bytes(buf[..4].try_into().unwrap());
-            raw_mata.extend_from_slice(&buf[4..]);
-            if mata_page_no == 0 {
-                break;
+            let buf = self._read(page_no)?;
+            page_no = u32::from_le_bytes(buf[..4].try_into().unwrap());
+            match iter.next() {
+                Some(data) => {
+                    if page_no == 0 {
+                        // create new.
+                    }
+                    self._write(page_no, data)?;
+                }
+                None => {}
             }
         }
-        Ok(raw_mata)
+        // for chunk in iter {
+        //     let buf = self._read(page_no)?;
+        //     page_no = u32::from_le_bytes(buf[..4].try_into().unwrap());
+        //     self._write(page_no, &buf)?;
+        // }
+        return Ok(());
+    }
+
+    /// - Every meta page contain first 4 bytes (u32) as next page pointer,
+    /// - It read raw data from those meta pages, Until there are no pages left to read...
+    /// - It has no idea about the deta.
+    fn read_meta(&mut self) -> Result<Vec<u8>> {
+        let mut raw_data: Vec<u8> = Vec::with_capacity(PAGE_SIZE);
+        let mut page_no = 0;
+        loop {
+            let buf = self._read(page_no)?;
+            page_no = u32::from_le_bytes(buf[..4].try_into().unwrap());
+            raw_data.extend_from_slice(&buf[4..]);
+            if page_no == 0 {
+                return Ok(raw_data);
+            }
+        }
     }
 
     pub fn open(path: &str) -> Result<Self> {
@@ -68,7 +100,7 @@ where
         let mut raw_mata: Vec<u8> = Vec::with_capacity(PAGE_SIZE);
         let mut mata_page_no = 0;
         loop {
-            let buf = pages.read_page(mata_page_no)?;
+            let buf = pages._read(mata_page_no)?;
             // every mata pages contain first 4 byte as next page pointer.
             mata_page_no = u32::from_le_bytes(buf[..4].try_into().unwrap());
             raw_mata.extend_from_slice(&buf[4..]);
@@ -96,16 +128,25 @@ where
         Ok(())
     }
 
-    pub fn _read(&mut self, page_no: P) -> Result<[u8; PAGE_SIZE]> {
-        self.read_page(page_no.into())
+    fn _seek(&mut self, page_no: u32) -> Result<u64> {
+        let pos = SeekFrom::Start(PAGE_SIZE as u64 * page_no as u64);
+        self.file.seek(pos)
     }
 
-    fn read_page(&mut self, page_no: u32) -> Result<[u8; PAGE_SIZE]> {
+    fn _write(&mut self, page_no: u32, buf: &[u8]) -> Result<usize> {
+        self._seek(page_no)?;
+        self.file.write(buf)
+    }
+
+    fn _read(&mut self, page_no: u32) -> Result<[u8; PAGE_SIZE]> {
         let mut buf = [0; PAGE_SIZE];
-        let pos = SeekFrom::Start(PAGE_SIZE as u64 * page_no as u64);
-        self.file.seek(pos)?;
+        self._seek(page_no)?;
         self.file.read(&mut buf)?;
         Ok(buf)
+    }
+
+    pub fn read_page(&mut self, page_no: P) -> Result<[u8; PAGE_SIZE]> {
+        self._read(page_no.into())
     }
 
     pub fn read(&mut self, page_no: u64) -> Result<[u8; PAGE_SIZE]> {
@@ -116,11 +157,10 @@ where
         Ok(buf)
     }
 
-    pub fn write(&mut self, page_no: u64, buf: &[u8; PAGE_SIZE]) -> Result<()> {
+    pub fn write(&mut self, page_no: u64, buf: &[u8; PAGE_SIZE]) -> Result<usize> {
         self.file
             .seek(SeekFrom::Start(PAGE_SIZE as u64 * page_no))?;
-        self.file.write(buf)?;
-        Ok(())
+        self.file.write(buf)
     }
 
     pub fn create(&mut self) -> Result<u64> {
@@ -128,6 +168,10 @@ where
         self.file.set_len(len + PAGE_SIZE as u64)?; // todo: maybe remove this line?
         Ok(len / PAGE_SIZE as u64)
     }
+}
+
+impl<P, const PS: usize, const PAGE_SIZE: usize> Drop for Pages<P, PS, PAGE_SIZE> {
+    fn drop(&mut self) {}
 }
 
 #[cfg(test)]

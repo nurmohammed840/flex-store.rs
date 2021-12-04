@@ -5,6 +5,8 @@ use std::{
 };
 
 pub struct Metadata {
+    /// Total page number
+    len: u32,
     size_info: SizeInfo,
     map: HashMap<u64, Vec<u8>>,
 }
@@ -14,6 +16,7 @@ impl Metadata {
         assert!(page_size >= 64, "Page size should >= 64 bytes");
         assert!(page_size < 16777216, "Page size should < 16mb");
         Self {
+            len: 0,
             map: HashMap::new(),
             size_info: SizeInfo {
                 page_no_nbytes: page_no_nbytes as u8,
