@@ -44,18 +44,6 @@ where
             _marker: PhantomData,
         };
 
-        let mut raw_mata: Vec<u8> = Vec::with_capacity(PAGE_SIZE);
-        let mut mata_page_no = 0;
-        loop {
-            let buf = pages.read_page(mata_page_no)?;
-            // every mata pages contain first 4 byte as next page pointer.
-            mata_page_no = u32::from_le_bytes(buf[..4].try_into().unwrap());
-            raw_mata.extend_from_slice(&buf[4..]);
-            if mata_page_no == 0 {
-                break;
-            }
-        }
-
         Ok(pages)
 
         // let size_info_nbytes: [u8; 4] = mata.drain(0..4).try_into().unwrap();

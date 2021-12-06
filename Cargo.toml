@@ -2,14 +2,12 @@
 
 members = [
     "byte-seeker",
+    "flex-page2",
 
-    # "flex-trie",
-
-    # "flex-bplus-tree",
-    # "flex-page2",
-
-    # "flex-tools",
     # "flex-page",
+    # "flex-trie",
+    # "flex-bplus-tree",
+    # "flex-tools",
     # "flex-btree",
     # "flex-value",
     # "flex-linear-hash",
