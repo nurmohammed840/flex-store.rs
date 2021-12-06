@@ -131,7 +131,7 @@ mod tests {
         assert_eq!(m2.to_bytes().len(), 10);
         assert_eq!(
             m2.extend_from_bytes(&m1.to_bytes()),
-            Err(SizeInfo { 
+            Err(SizeInfo {
                 page_size: 4096,
                 page_no_nbytes: 2
             })
@@ -145,4 +145,12 @@ mod tests {
         }
         btreemap
     }
+}
+
+#[test]
+fn test_name() {
+    let a = 0b_0011;
+    let b = 0b_0101;
+
+    println!("Out: {:04b}", a & b);
 }

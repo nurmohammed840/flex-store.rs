@@ -43,9 +43,7 @@ impl<P: PageNo, const PS: usize> Pages<P, PS> {
         Ok(this)
     }
 
-    fn _write_raw_meta() {
-        
-    }
+    fn _write_raw_meta() {}
 
     fn _read_raw_meta() -> Vec<u8> {
         let mut raw: Vec<u8> = Vec::with_capacity(PS);
@@ -60,8 +58,6 @@ impl<P: PageNo, const PS: usize> Pages<P, PS> {
             }
         }
     }
-
-
 }
 
 impl<P: PageNo, const PAGE_SIZE: usize> Drop for Pages<P, PAGE_SIZE> {
