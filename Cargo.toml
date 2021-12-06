@@ -2,9 +2,8 @@
 
 members = [
     "byte-seeker",
-    "flex-page2",
+    "flex-page",
 
-    # "flex-page",
     # "flex-trie",
     # "flex-bplus-tree",
     # "flex-tools",
