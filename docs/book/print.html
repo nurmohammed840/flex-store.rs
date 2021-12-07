@@ -1,0 +1,344 @@
+<!DOCTYPE HTML>
+<html lang="en" class="sidebar-visible no-js light">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Database Internals</title>
+        <meta name="robots" content="noindex" />
+
+
+        <!-- Custom HTML head -->
+
+        <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
+        <meta name="description" content="Database">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff" />
+
+        <link rel="icon" href="favicon.svg">
+        <link rel="shortcut icon" href="favicon.png">
+        <link rel="stylesheet" href="css/variables.css">
+        <link rel="stylesheet" href="css/general.css">
+        <link rel="stylesheet" href="css/chrome.css">
+        <link rel="stylesheet" href="css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" href="highlight.css">
+        <link rel="stylesheet" href="tomorrow-night.css">
+        <link rel="stylesheet" href="ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+
+    </head>
+    <body>
+        <!-- Provide site root to javascript -->
+        <script type="text/javascript">
+            var path_to_root = "";
+            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "navy" : "light";
+        </script>
+
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script type="text/javascript">
+            try {
+                var theme = localStorage.getItem('mdbook-theme');
+                var sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script type="text/javascript">
+            var theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            var html = document.querySelector('html');
+            html.classList.remove('no-js')
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add('js');
+        </script>
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script type="text/javascript">
+            var html = document.querySelector('html');
+            var sidebar = 'hidden';
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            }
+            html.classList.remove('sidebar-visible');
+            html.classList.add("sidebar-" + sidebar);
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <div class="sidebar-scrollbox">
+                <ol class="chapter"><li class="chapter-item expanded "><a href="introduction/index.html"><strong aria-hidden="true">1.</strong> Introduction</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="introduction/disk_base/index.html"><strong aria-hidden="true">1.1.</strong> Disk-Base</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="introduction/disk_base/hhd.html"><strong aria-hidden="true">1.1.1.</strong> HHD</a></li><li class="chapter-item expanded "><a href="introduction/disk_base/ssd.html"><strong aria-hidden="true">1.1.2.</strong> SSD</a></li></ol></li><li class="chapter-item expanded "><a href="introduction/in_memory.html"><strong aria-hidden="true">1.2.</strong> In-Memory</a></li></ol></li><li class="chapter-item expanded "><a href="file_formats/index.html"><strong aria-hidden="true">2.</strong> File Formats</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="file_formats/data.html"><strong aria-hidden="true">2.1.</strong> Data</a></li><li class="chapter-item expanded "><a href="file_formats/record.html"><strong aria-hidden="true">2.2.</strong> Record</a></li><li class="chapter-item expanded "><a href="file_formats/slotted_pages.html"><strong aria-hidden="true">2.3.</strong> Slotted Pages</a></li><li class="chapter-item expanded "><a href="file_formats/represent_tree.html"><strong aria-hidden="true">2.4.</strong> Represent Tree</a></li></ol></li><li class="chapter-item expanded "><a href="page/index.html"><strong aria-hidden="true">3.</strong> Page</a></li><li class="chapter-item expanded "><a href="indexing/index.html"><strong aria-hidden="true">4.</strong> Indexing</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="indexing/b_plus_tree.html"><strong aria-hidden="true">4.1.</strong> BPlusTree</a></li></ol></li></ol>
+            </div>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle"></div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky bordered">
+                    <div class="left-buttons">
+                        <button id="sidebar-toggle" class="icon-button" type="button" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </button>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light (default)</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">Database Internals</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script type="text/javascript">
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="introduction"><a class="header" href="#introduction">Introduction</a></h1>
+<p>There’s no common blueprint for database management system design. Every data‐
+base is built slightly differently. </p>
+<p>Database systems store data in memory and on disk.</p>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="disk-base-database"><a class="header" href="#disk-base-database">Disk-Base Database</a></h1>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="hhd"><a class="header" href="#hhd">HHD</a></h1>
+<p>The smallest transfer unit of a spinning drive is a sector. Sector sizes
+typically range from 512 bytes to 4 Kb.</p>
+<iframe width="560" height="315" src="https://www.youtube.com/embed/wteUW2sL7bc" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="ssd"><a class="header" href="#ssd">SSD</a></h1>
+<p>A typical SSD is built of memory cells, connected into strings (typically 32 to 64 cells per string), strings are combined into arrays, arrays are combined into pages, and pages are
+combined into blocks.</p>
+<iframe width="560" height="315" src="https://www.youtube.com/embed/E7Up7VuFd8A" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+<p>Depending on the exact technology used, a cell can hold
+one or multiple bits of data. </p>
+<p>Pages vary in size between devices, but typically their sizes range from 2 to 16 Kb. Blocks typically contain 64 to 512 pages.</p>
+<p>Blocks are organized into planes and, finally, planes are placed on a die. SSDs
+can have one or more dies.</p>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="in-memory-database"><a class="header" href="#in-memory-database">In-Memory Database</a></h1>
+<p>In-memory database management systems store data primarily in memory and use the disk for recovery and logging.</p>
+<p>This kind of database maintain backups on disk to provide durability and
+prevent loss of the volatile data. Some databases store data exclusively in memory,
+without any durability guarantees</p>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="file-formats"><a class="header" href="#file-formats">File Formats</a></h1>
+<p>Database store data in pages (fixed size smallest unit of data).</p>
+<p>Size of a block is your choice (256B, 512B, 1024B, etc..), but typical file
+system block size is 4KB - 16KB.</p>
+<!-- Pages can be organized as sequences of records or as a slotted pages. We will discuss in more detail later. -->
+<iframe width="560" height="315" src="https://www.youtube.com/embed/KN8YgJnShPM?start=24" title="File System" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe><div style="break-before: page; page-break-before: always;"></div><h2 id="binary-encoding"><a class="header" href="#binary-encoding">Binary Encoding</a></h2>
+<p>To store data on disk efficiently, it needs to be encoded using a format that is compact
+and easy to serialize and deserialize.</p>
+<h2 id="primitive-types"><a class="header" href="#primitive-types">Primitive Types</a></h2>
+<p>Keys and values have a type, such as integer, date, or string, and can be represented in their raw binary forms.</p>
+<p>Most numeric data types are represented as fixed-size values. When working with
+multibyte numeric values, it is important to use the same byte-order (endianness) for
+both encoding and decoding.</p>
+<h3 id="endianness"><a class="header" href="#endianness"><a href="https://en.wikipedia.org/wiki/Endianness">Endianness</a></a></h3>
+<p>Endianness determines the sequential order of bytes.</p>
+<p>Given a value <code>0x0001</code>, How do we actually align its two bytes in memory?</p>
+<p><img src="file_formats/../images/endian_1.png" alt="Endian" /></p>
+<p>European languages conventionally use left-to-right writing system. That can be compared to big-endian, where the most significant digit goes to the left and least significant digits continue to the right: <code>1234</code></p>
+<p>Hebrew, Farsi, and Arabic, write words right-to-left. And so is little-endian, where the most significant digit is on the right. <code>4321</code></p>
+<p>Example:</p>
+<p><img src="file_formats/../images/big_endian.svg" alt="BigEndian" />
+<img src="file_formats/../images/little_endian.svg" alt="LittleEndian" /></p>
+<h2 id="strings-and-variable-size"><a class="header" href="#strings-and-variable-size">Strings and Variable-Size</a></h2>
+<p>Strings and other variable-size data types (such as arrays of fixed-size data) can be
+serialized as a number, representing the length of the array or string, followed by size
+bytes.</p>
+<h2 id="bit-packed-data-booleans-enums-and-flags"><a class="header" href="#bit-packed-data-booleans-enums-and-flags">Bit-Packed Data: Booleans, Enums, and Flags</a></h2>
+<p>Booleans can be represented either by using a single byte, or encoding true and
+false as 1 and 0 values. Since a boolean has only two values.</p>
+<h3 id="enum"><a class="header" href="#enum">Enum</a></h3>
+<p>Enumerated types are used to represent often repeated low-cardinality values. 
+For example, We can encode a tree node type using an enum:</p>
+<pre><pre class="playground"><code class="language-rust">
+<span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>enum NodeType {
+    Root,   // 0
+    Branch, // 1
+    Leaf    // 2
+};
+<span class="boring">}
+</span></code></pre></pre>
+<h3 id="flag"><a class="header" href="#flag">Flag</a></h3>
+<p>Another closely related concept is flags, kind of a combination of packed booleans
+and enums.</p>
+<p>Flag values can be read and written from the packed value using <a href="https://en.wikipedia.org/wiki/Mask_(computing)">bitmasks</a> and bitwise operators. Lets see this <a href="https://en.wikipedia.org/wiki/Truth_table">true table</a> </p>
+<p><img src="file_formats/../images/truth_table.png" alt="truth_table" /></p>
+<p>Here gray recrangles represent <code>0</code> and greens are <code>1</code>.</p>
+<pre><pre class="playground"><code class="language-rust">
+<span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>let a = 0b_0011; // Bits     : 0  0  1  1
+let b = 0b_0101; // We need  :    ^     ^  
+
+println!(&quot;Out: {:04b}&quot;, a &amp; b); 
+<span class="boring">}
+</span></code></pre></pre>
+<p>We can represent bits (<code>a = 0011</code>) with prefix <code>0b</code>. Here we are using <code>&amp;</code> bitmask,</p>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="record"><a class="header" href="#record"><a href="https://en.wikipedia.org/wiki/Record_(computer_science)">Record</a></a></h1>
+<p>A record is a collection of fields. Records in a relational database are usually called  as &quot;rows&quot;. In NOSQL are called &quot;document&quot;. </p>
+<p>Example:</p>
+<pre><pre class="playground"><code class="language-rust">
+<span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span><span class="boring">use std::mem::size_of;
+</span>struct Date {
+    day: u8,
+    month: u8,
+    year: u16,
+}
+println!(&quot;{}&quot;, size_of::&lt;Date&gt;());
+<span class="boring">}
+</span></code></pre></pre>
+<p>This is a fixed-length size record. </p>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="slotted-pages"><a class="header" href="#slotted-pages">Slotted Pages</a></h1>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="represent-tree"><a class="header" href="#represent-tree">Represent Tree</a></h1>
+<p>There is many way to represent a tree on disk, A tree can be use for indexing database records (such as BPlusTree).</p>
+<h2 id="using-pointer"><a class="header" href="#using-pointer">Using Pointer</a></h2>
+<p>This is the best way to represent a tree on disk. It use pointer of next block on disk.</p>
+<table><thead><tr><th align="center">Index</th><th align="center">Element</th><th align="center">Left</th><th align="center">Right</th></tr></thead><tbody>
+<tr><td align="center">0</td><td align="center">--</td><td align="center">--</td><td align="center">5</td></tr>
+<tr><td align="center">1</td><td align="center">A</td><td align="center">0</td><td align="center">0</td></tr>
+<tr><td align="center">2</td><td align="center">B</td><td align="center">1</td><td align="center">3</td></tr>
+<tr><td align="center">3</td><td align="center">C</td><td align="center">0</td><td align="center">0</td></tr>
+<tr><td align="center">4</td><td align="center">D</td><td align="center">2</td><td align="center">0</td></tr>
+<tr><td align="center">5</td><td align="center">E</td><td align="center">4</td><td align="center">6</td></tr>
+<tr><td align="center">6</td><td align="center">F</td><td align="center">0</td><td align="center">0</td></tr>
+</tbody></table>
+<p>To represents this tree:</p>
+<pre><code>             E
+            / \
+           /   \
+          /     \
+         D       F
+        /
+       /
+       B
+      / \
+     /   \
+    /     \
+   A       C
+</code></pre>
+<ul>
+<li>
+<p>Advantages:</p>
+<ul>
+<li>Easy structure in which to search</li>
+<li>Easy to insert Easy to delete</li>
+<li>Easy to read tree back in from disk after writing out (no recreation of
+links required)</li>
+<li>The programmer can link unused table entries into a &quot;free list.&quot; and can
+write functions to allocate and deallocate entries in the table for use as
+tree nodes.</li>
+</ul>
+</li>
+<li>
+<p>Disadvantages:</p>
+<ul>
+<li>Memory allocation is not truly dynamic and it can be difficult to match the
+array size with the size range of the tree.</li>
+</ul>
+</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="page"><a class="header" href="#page">Page</a></h1>
+<pre><pre class="playground"><code class="language-rust">
+<span class="boring">#![allow(unused)]
+</span>
+<span class="boring">fn main() {
+</span><span class="boring">}
+</span></code></pre></pre>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="indexing"><a class="header" href="#indexing">Indexing</a></h1>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="bplustree"><a class="header" href="#bplustree">BPlusTree</a></h1>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+
+            </nav>
+
+        </div>
+
+
+
+
+        <script type="text/javascript">
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="elasticlunr.min.js" type="text/javascript" charset="utf-8"></script>
+        <script src="mark.min.js" type="text/javascript" charset="utf-8"></script>
+        <script src="searcher.js" type="text/javascript" charset="utf-8"></script>
+
+        <script src="clipboard.min.js" type="text/javascript" charset="utf-8"></script>
+        <script src="highlight.js" type="text/javascript" charset="utf-8"></script>
+        <script src="book.js" type="text/javascript" charset="utf-8"></script>
+
+        <!-- Custom JS scripts -->
+
+        <script type="text/javascript">
+        window.addEventListener('load', function() {
+            window.setTimeout(window.print, 100);
+        });
+        </script>
+
+    </body>
+</html>
