@@ -65,11 +65,3 @@ impl<P: PageNo, const PAGE_SIZE: usize> Drop for Pages<P, PAGE_SIZE> {
         todo!()
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use std::fs::{remove_file, File};
-
-    #[test]
-    fn test_name() {}
-}

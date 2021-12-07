@@ -1,30 +1,29 @@
-use std::ops::{Index, IndexMut};
-
 use crate::Value;
 
-#[derive(Clone, Default, PartialEq, Debug, PartialOrd)]
-pub struct Array(Vec<Value>);
-
-crate::utils::extends!(Array: Vec<Value>);
-crate::utils::derives!(Array: Display);
-crate::utils::derives!(Array: New);
+pub trait Array {
+    fn add<V: Into<Value>>(&mut self, value: V);
+    fn set<V: Into<Value>>(&mut self, index: usize, value: V);
+    fn fill_with<V: Into<Value>>(&mut self, value: V);
+    fn resize_with<V: Into<Value>>(&mut self, new_len: usize, value: V);
+    fn to_string(&self) -> String;
+}
 
 macro_rules! impl_method {
-    [$name:ident $($arg:ident: $t:ty)*] => {
+    [$name:ident => $m:ident $($arg:ident: $t:ty)*] => {
         #[inline]
-        pub fn $name<T: Into<Value>>(&mut self, $($arg: $t,)* value: T) {
-            self.0.$name($($arg,)* value.into());
+        fn $m<V: Into<Value>>(&mut self, $($arg: $t,)* value: V) {
+            self.$name($($arg,)* value.into());
         }
     };
 }
 
-impl Array {
-    impl_method!(insert index: usize);
-    impl_method!(resize new_len: usize);
-    impl_method!(fill);
-    impl_method!(push);
+impl Array for Vec<Value> {
+    impl_method!(push => add);
+    impl_method!(fill => fill_with);
+    impl_method!(insert => set index: usize);
+    impl_method!(resize => resize_with new_len: usize);
 
-    pub fn to_string(&self) -> String {
+    fn to_string(&self) -> String {
         let mut string = "[".to_string();
         let mut iter = self.iter();
         if let Some(value) = iter.next() {
@@ -35,46 +34,5 @@ impl Array {
         }
         string.push(']');
         string
-    }
-}
-
-impl Index<usize> for Array {
-    type Output = Value;
-    #[inline]
-    fn index(&self, index: usize) -> &Self::Output {
-        self.0.get(index).unwrap()
-    }
-}
-
-impl IndexMut<usize> for Array {
-    #[inline]
-    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
-        if !self.0.get(index).is_some() {
-            self.resize(index + 1, Value::Null);
-        }
-        self.0.get_mut(index).unwrap()
-    }
-}
-
-impl<T: Into<Value>> FromIterator<T> for Array {
-    #[inline]
-    fn from_iter<R: IntoIterator<Item = T>>(iter: R) -> Self {
-        let mut arr = Array::default();
-        for v in iter {
-            arr.push(v);
-        }
-        arr
-    }
-}
-impl<T: Into<Value>, const S: usize> From<[T; S]> for Array {
-    #[inline]
-    fn from(arr: [T; S]) -> Self {
-        arr.into_iter().collect()
-    }
-}
-impl<T: Into<Value>> From<Vec<T>> for Array {
-    #[inline]
-    fn from(arr: Vec<T>) -> Self {
-        arr.into_iter().collect()
     }
 }
