@@ -1,82 +1,78 @@
-use byte_seeker::{BytesReader, LittleEndian};
+use byte_seeker::{BytesReaderLE, BytesSeeker, BytesWriterLE};
+
 use std::{
     collections::{hash_map::DefaultHasher, HashMap},
     hash::{Hash, Hasher},
 };
 
-pub struct Metadata {
-    /// Total page number
-    len: u32,
+use crate::page_no::PageNo;
+
+pub struct Metadata<P, const PAGE_SIZE: usize> {
     size_info: SizeInfo,
-    map: HashMap<u64, Vec<u8>>,
+    /// Free list page pointer
+    free_list_page_no: P,
+    data: HashMap<u64, Vec<u8>>,
 }
 
-impl Metadata {
-    pub fn new(page_no_nbytes: usize, page_size: usize) -> Self {
-        assert!(page_size >= 64, "Page size should >= 64 bytes");
-        assert!(page_size < 16777216, "Page size should < 16mb");
+impl<P: PageNo, const PAGE_SIZE: usize> Metadata<P, PAGE_SIZE> {
+    pub fn new() -> Self {
+        assert!(PAGE_SIZE >= 64, "Page size should >= 64 bytes");
+        assert!(PAGE_SIZE < 16777216, "Page size should < 16mb");
         Self {
-            len: 0,
-            map: HashMap::new(),
             size_info: SizeInfo {
-                page_no_nbytes: page_no_nbytes as u8,
-                page_size: page_size as u32,
+                page_no_nbytes: P::NBYTES as u8,
+                page_size: PAGE_SIZE as u32,
             },
+            free_list_page_no: P::default(),
+            data: HashMap::new(),
         }
     }
     /// This funtion return expected `SizeInfo` as err!
     pub(crate) fn extend_from_bytes(&mut self, bytes: &[u8]) -> Result<(), SizeInfo> {
-        let mut reader = BytesReader::new(bytes);
+        let mut reader = BytesSeeker::new(bytes);
 
         let size_info = SizeInfo::from(reader.buf::<4>());
-
         if size_info != self.size_info {
             return Err(size_info);
         }
-        let map_len: u16 = reader.read();
-        self.map = HashMap::with_capacity(map_len.into());
 
-        for _ in 0..map_len {
+        self.free_list_page_no = P::from_bytes(reader.bytes(P::NBYTES).to_vec());
+
+        let data_len: u16 = reader.read();
+        self.data = HashMap::with_capacity(data_len.into());
+
+        for _ in 0..data_len {
             let key: u64 = reader.read();
             let vlen: u16 = reader.read();
             let value = reader.bytes(vlen.into()).to_vec();
-            self.map.insert(key, value);
+            self.data.insert(key, value);
         }
         Ok(())
     }
 
     pub(crate) fn to_bytes(&self) -> Vec<u8> {
         let mut bytes = Vec::new();
-        bytes.extend_from_slice(&self.size_info.to_buf());
 
-        let map_len: u16 = self.map.len().try_into().unwrap();
-        bytes.extend_from_slice(&map_len.to_le_bytes());
+        bytes.extend(self.size_info.to_bytes());
+        bytes.extend(self.free_list_page_no.to_bytes());
 
-        for (k, v) in &self.map {
-            bytes.extend_from_slice(&k.to_le_bytes());
-            // value
-            let vlen: u16 = v.len().try_into().unwrap();
-            bytes.extend_from_slice(&vlen.to_le_bytes());
-            bytes.extend_from_slice(&v);
+        bytes.write(self.data.len() as u16);
+        for (key, value) in &self.data {
+            bytes.write(*key);
+            // Max Value Size: 64 kb
+            let vlen = value.len() as u16;
+            bytes.write(vlen);
+            bytes.extend(&value[..vlen.into()]);
         }
         bytes
     }
 
     pub fn insert<T: Hash>(&mut self, key: T, value: Vec<u8>) {
-        self.map.insert(create_hash(key), value);
+        let mut hasher = DefaultHasher::new();
+        key.hash(&mut hasher);
+        let hash = hasher.finish();
+        self.data.insert(hash, value);
     }
-    pub fn get<T: Hash>(&self, key: T) -> Option<&Vec<u8>> {
-        self.map.get(&create_hash(key))
-    }
-    pub fn get_mut<T: Hash>(&mut self, key: T) -> Option<&mut Vec<u8>> {
-        self.map.get_mut(&create_hash(key))
-    }
-}
-
-fn create_hash<T: Hash>(key: T) -> u64 {
-    let mut hasher = DefaultHasher::new();
-    key.hash(&mut hasher);
-    hasher.finish()
 }
 
 #[derive(PartialEq, Debug)]
@@ -85,7 +81,7 @@ pub struct SizeInfo {
     page_no_nbytes: u8,
 }
 impl SizeInfo {
-    fn to_buf(&self) -> [u8; 4] {
+    fn to_bytes(&self) -> [u8; 4] {
         let [x, y, z, _] = self.page_size.to_le_bytes();
         [self.page_no_nbytes, x, y, z]
     }
@@ -104,12 +100,42 @@ mod tests {
     use std::collections::BTreeMap;
 
     #[test]
-    fn size_info() {
-        let size_info = SizeInfo {
-            page_size: 4096,
-            page_no_nbytes: 3,
-        };
-        assert!(size_info == SizeInfo::from(size_info.to_buf()));
+    fn metadata() {
+        let mut m1 = Metadata::<u32, 8192>::new();
+        let mut m2 = Metadata::<u32, 8192>::new();
+        let mut m3 = Metadata::<u32, 8192>::new();
+
+        m1.free_list_page_no = 123;
+        for i in 0..1000 {
+            m1.insert(i, b"Nice!".to_vec());
+        }
+
+        m2.extend_from_bytes(&m1.to_bytes()).unwrap();
+        m3.extend_from_bytes(&m2.to_bytes()).unwrap();
+        // Rust, default hashmap doesn't maintain ordering...
+        let a = create_btree_map_from_hash_map(&m1.data);
+        let b = create_btree_map_from_hash_map(&m2.data);
+        let c = create_btree_map_from_hash_map(&m3.data);
+
+        assert_eq!(a, b);
+        assert_eq!(b, c);
+        assert_eq!(m3.size_info, m1.size_info);
+        assert_eq!(m1.free_list_page_no, m3.free_list_page_no);
+    }
+
+    #[test]
+    fn metadata_size_info() {
+        let mut m1 = Metadata::<u16, 4096>::new();
+        let mut m2 = Metadata::<u32, 8192>::new();
+        assert_eq!(m1.to_bytes().len(), 8);
+        assert_eq!(m2.to_bytes().len(), 10);
+        assert_eq!(
+            m2.extend_from_bytes(&m1.to_bytes()),
+            Err(SizeInfo {
+                page_size: 4096,
+                page_no_nbytes: 2
+            })
+        );
     }
 
     fn create_btree_map_from_hash_map(hashmap: &HashMap<u64, Vec<u8>>) -> BTreeMap<&u64, &Vec<u8>> {
@@ -118,39 +144,5 @@ mod tests {
             btreemap.insert(k, v);
         }
         btreemap
-    }
-
-    #[test]
-    fn metadata() {
-        let mut m1 = Metadata::new(4, 8192);
-        let mut m2 = Metadata::new(4, 8192);
-        let mut m3 = Metadata::new(4, 8192);
-
-        for i in 0..1000 {
-            m1.insert(i, b"Nice!".to_vec());
-        }
-        m2.extend_from_bytes(&m1.to_bytes()).unwrap();
-        m3.extend_from_bytes(&m2.to_bytes()).unwrap();
-        // Rust, default hashmap doesn't maintain ordering...
-        let a = create_btree_map_from_hash_map(&m1.map);
-        let b = create_btree_map_from_hash_map(&m2.map);
-        let c = create_btree_map_from_hash_map(&m3.map);
-
-        assert_eq!(a, b);
-        assert_eq!(b, c);
-    }
-
-    #[test]
-    fn metadata_size_info() {
-        let mut m1 = Metadata::new(2, 4096);
-        let mut m2 = Metadata::new(4, 8192);
-        let expected_size_info = m2.extend_from_bytes(&m1.to_bytes()).err().unwrap();
-        assert_eq!(
-            expected_size_info,
-            SizeInfo {
-                page_size: 4096,
-                page_no_nbytes: 2
-            }
-        )
     }
 }

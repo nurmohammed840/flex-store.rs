@@ -1,77 +1,80 @@
-pub mod endian;
+pub mod reader;
+pub mod writer;
 
-pub struct BytesReader<'a> {
+pub use reader::*;
+pub use writer::*;
+
+pub struct BytesSeeker<'a> {
     bytes: &'a [u8],
     cursor: usize,
 }
 
-impl<'a> BytesReader<'a> {
+impl<'a> BytesSeeker<'a> {
     pub fn new(bytes: &'a [u8]) -> Self {
         Self { bytes, cursor: 0 }
     }
+
     #[inline]
     pub fn next(&mut self) -> Option<u8> {
         let byte = *self.bytes.get(self.cursor)?;
         self.cursor += 1;
         Some(byte)
     }
+
     #[inline]
     pub fn advance(&mut self, n: usize) -> Option<usize> {
         let len = self.cursor + n;
         if len > self.bytes.len() {
             return None;
         }
-        self.cursor += n;
-        Some(self.cursor)
+        self.cursor = len;
+        Some(len)
     }
-    #[inline]
-    pub fn buf<const S: usize>(&mut self) -> [u8; S] {
-        self.get_buf().unwrap()
-    }
-    #[inline]
-    pub fn bytes(&mut self, n: usize) -> &[u8] {
-        self.get_bytes(n).unwrap()
-    }
-    #[inline]
-    pub fn get_buf<const S: usize>(&mut self) -> Option<[u8; S]> {
-        self.get_bytes(S)?.try_into().ok()
-    }
+
     #[inline]
     pub fn get_bytes(&mut self, n: usize) -> Option<&[u8]> {
         Some(&self.bytes[self.cursor..self.advance(n)?])
     }
-}
 
-macro_rules! impl_trait {
-    [$($name:ident)*] => ($(
-        pub trait $name {
-            fn get<T: endian::$name<S>, const S: usize>(&mut self) -> Option<T>;
-            fn read<T: endian::$name<S>, const S: usize>(&mut self) -> T;
-        }
-        impl<'a> $name for BytesReader<'a> {
-            #[inline]
-            fn get<T: endian::$name<S>, const S: usize>(&mut self) -> Option<T> {
-                Some(T::from_bytes(self.get_buf()?))
-            }
-            #[inline]
-            fn read<T: endian::$name<S>, const S: usize>(&mut self) -> T {
-                T::from_bytes(self.buf())
-            }
-        }
-    )*);
+    #[inline]
+    pub fn get_buf<const S: usize>(&mut self) -> Option<[u8; S]> {
+        self.get_bytes(S)?.try_into().ok()
+    }
+
+    #[inline]
+    pub fn bytes(&mut self, n: usize) -> &[u8] {
+        let len = self.cursor + n;
+        let bytes = &self.bytes[self.cursor..len];
+        self.cursor = len;
+        bytes
+    }
+    #[inline]
+    pub fn buf<const S: usize>(&mut self) -> [u8; S] {
+        self.bytes(S).try_into().unwrap()
+    }
 }
-impl_trait!(LittleEndian BigEndian NativeEndian);
 
 #[cfg(test)]
 mod tests {
-    use super::{BytesReader, LittleEndian};
+    use super::BytesSeeker;
+
     #[test]
-    fn byte_streem() {
-        let mut seeker = BytesReader::new(&[1u8, 2, 3, 4, 5, 6]);
-        assert_eq!(Some(1u8), seeker.get());
-        assert_eq!(Some(&[2, 3][..]), seeker.get_bytes(2));
-        assert_eq!(Some([4, 5]), seeker.get_buf());
-        assert_eq!(6u8, seeker.read());
-        assert_eq!(None, seeker.get_bytes(10));
+    fn advance() {
+        let mut reader = BytesSeeker::new(&[1, 2]);
+        assert_eq!(None, reader.advance(100));
+        assert_eq!(Some(1), reader.advance(1));
+        assert_eq!(None, reader.advance(2));
+        assert_eq!(Some(2), reader.advance(1));
+        assert_eq!(None, reader.advance(1));
+    }
+
+    #[test]
+    fn get_bytes() {
+        let mut reader = BytesSeeker::new(&[1, 2]);
+        assert_eq!(None, reader.get_bytes(100));
+        assert_eq!(Some(&[1][..]), reader.get_bytes(1));
+        assert_eq!(None, reader.get_bytes(2));
+        assert_eq!(Some(&[2][..]), reader.get_bytes(1));
+        assert_eq!(None, reader.get_bytes(1));
     }
 }
