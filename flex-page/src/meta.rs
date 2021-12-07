@@ -146,11 +146,3 @@ mod tests {
         btreemap
     }
 }
-
-#[test]
-fn test_name() {
-    let a = 0b_0011;
-    let b = 0b_0101;
-
-    println!("Out: {:04b}", a & b);
-}

@@ -7,9 +7,9 @@ Example:
 ```rust
 # use std::mem::size_of;
 struct Date {
-    day: u32,
-    month: u32,
-    year: u32,
+    day: u8,
+    month: u8,
+    year: u16,
 }
 println!("{}", size_of::<Date>());
 ```
