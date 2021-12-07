@@ -3,7 +3,8 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Record - Database Internals</title>
+        <title></title>
+        <base href="/">
 
 
         <!-- Custom HTML head -->
@@ -13,29 +14,31 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="theme-color" content="#ffffff" />
 
-        <link rel="icon" href="../favicon.svg">
-        <link rel="shortcut icon" href="../favicon.png">
-        <link rel="stylesheet" href="../css/variables.css">
-        <link rel="stylesheet" href="../css/general.css">
-        <link rel="stylesheet" href="../css/chrome.css">
-        <link rel="stylesheet" href="../css/print.css" media="print">
+        <link rel="icon" href="favicon.svg">
+        <link rel="shortcut icon" href="favicon.png">
+        <link rel="stylesheet" href="css/variables.css">
+        <link rel="stylesheet" href="css/general.css">
+        <link rel="stylesheet" href="css/chrome.css">
+        <link rel="stylesheet" href="css/print.css" media="print">
 
         <!-- Fonts -->
-        <link rel="stylesheet" href="../FontAwesome/css/font-awesome.css">
-        <link rel="stylesheet" href="../fonts/fonts.css">
+        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="fonts/fonts.css">
 
         <!-- Highlight.js Stylesheets -->
-        <link rel="stylesheet" href="../highlight.css">
-        <link rel="stylesheet" href="../tomorrow-night.css">
-        <link rel="stylesheet" href="../ayu-highlight.css">
+        <link rel="stylesheet" href="highlight.css">
+        <link rel="stylesheet" href="tomorrow-night.css">
+        <link rel="stylesheet" href="ayu-highlight.css">
 
         <!-- Custom theme stylesheets -->
 
+        <!-- MathJax -->
+        <script async type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
     </head>
     <body>
         <!-- Provide site root to javascript -->
         <script type="text/javascript">
-            var path_to_root = "../";
+            var path_to_root = "";
             var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "navy" : "light";
         </script>
 
@@ -81,7 +84,7 @@
 
         <nav id="sidebar" class="sidebar" aria-label="Table of contents">
             <div class="sidebar-scrollbox">
-                <ol class="chapter"><li class="chapter-item expanded "><a href="../introduction/index.html"><strong aria-hidden="true">1.</strong> Introduction</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../introduction/disk_base/index.html"><strong aria-hidden="true">1.1.</strong> Disk-Base</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../introduction/disk_base/hhd.html"><strong aria-hidden="true">1.1.1.</strong> HHD</a></li><li class="chapter-item expanded "><a href="../introduction/disk_base/ssd.html"><strong aria-hidden="true">1.1.2.</strong> SSD</a></li></ol></li><li class="chapter-item expanded "><a href="../introduction/in_memory.html"><strong aria-hidden="true">1.2.</strong> In-Memory</a></li></ol></li><li class="chapter-item expanded "><a href="../file_formats/index.html"><strong aria-hidden="true">2.</strong> File Formats</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../file_formats/data.html"><strong aria-hidden="true">2.1.</strong> Data</a></li><li class="chapter-item expanded "><a href="../file_formats/record.html" class="active"><strong aria-hidden="true">2.2.</strong> Record</a></li><li class="chapter-item expanded "><a href="../file_formats/slotted_pages.html"><strong aria-hidden="true">2.3.</strong> Slotted Pages</a></li><li class="chapter-item expanded "><a href="../file_formats/represent_tree.html"><strong aria-hidden="true">2.4.</strong> Represent Tree</a></li></ol></li><li class="chapter-item expanded "><a href="../page/index.html"><strong aria-hidden="true">3.</strong> Page</a></li><li class="chapter-item expanded "><a href="../indexing/index.html"><strong aria-hidden="true">4.</strong> Indexing</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../indexing/b_plus_tree.html"><strong aria-hidden="true">4.1.</strong> BPlusTree</a></li></ol></li></ol>
+                <ol class="chapter"><li class="chapter-item expanded "><a href="introduction/index.html"><strong aria-hidden="true">1.</strong> Introduction</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="introduction/disk_base/index.html"><strong aria-hidden="true">1.1.</strong> Disk-Base</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="introduction/disk_base/hhd.html"><strong aria-hidden="true">1.1.1.</strong> HHD</a></li><li class="chapter-item expanded "><a href="introduction/disk_base/ssd.html"><strong aria-hidden="true">1.1.2.</strong> SSD</a></li></ol></li><li class="chapter-item expanded "><a href="introduction/in_memory.html"><strong aria-hidden="true">1.2.</strong> In-Memory</a></li></ol></li><li class="chapter-item expanded "><a href="file_formats/index.html"><strong aria-hidden="true">2.</strong> File Formats</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="file_formats/data.html"><strong aria-hidden="true">2.1.</strong> Data</a></li><li class="chapter-item expanded "><a href="file_formats/record.html"><strong aria-hidden="true">2.2.</strong> Record</a></li><li class="chapter-item expanded "><a href="file_formats/slotted_pages.html"><strong aria-hidden="true">2.3.</strong> Slotted Pages</a></li><li class="chapter-item expanded "><a href="file_formats/represent_tree.html"><strong aria-hidden="true">2.4.</strong> Represent Tree</a></li></ol></li><li class="chapter-item expanded "><a href="page/index.html"><strong aria-hidden="true">3.</strong> Page</a></li><li class="chapter-item expanded "><a href="indexing/index.html"><strong aria-hidden="true">4.</strong> Indexing</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="indexing/b_plus_tree.html"><strong aria-hidden="true">4.1.</strong> BPlusTree</a></li></ol></li></ol>
             </div>
             <div id="sidebar-resize-handle" class="sidebar-resize-handle"></div>
         </nav>
@@ -113,8 +116,11 @@
                     <h1 class="menu-title">Database Internals</h1>
 
                     <div class="right-buttons">
-                        <a href="../print.html" title="Print this book" aria-label="Print this book">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
                             <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/nurmohammed840/flex" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
                         </a>
 
                     </div>
@@ -142,34 +148,14 @@
 
                 <div id="content" class="content">
                     <main>
-                        <h1 id="record"><a class="header" href="#record"><a href="https://en.wikipedia.org/wiki/Record_(computer_science)">Record</a></a></h1>
-<p>A record is a collection of fields. Records in a relational database are usually called  as &quot;rows&quot;. In NOSQL are called &quot;document&quot;. </p>
-<p>Example:</p>
-<pre><pre class="playground"><code class="language-rust">
-<span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span><span class="boring">use std::mem::size_of;
-</span>struct Date {
-    day: u8,
-    month: u8,
-    year: u16,
-}
-println!(&quot;{}&quot;, size_of::&lt;Date&gt;());
-<span class="boring">}
-</span></code></pre></pre>
-<p>This is a fixed-length size record. </p>
+                        <h1 id="document-not-found-404"><a class="header" href="#document-not-found-404">Document not found (404)</a></h1>
+<p>This URL is invalid, sorry. Please use the navigation bar or search to continue.</p>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../file_formats/data.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
-                                <i class="fa fa-angle-left"></i>
-                            </a>
 
-                            <a rel="next" href="../file_formats/slotted_pages.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
-                                <i class="fa fa-angle-right"></i>
-                            </a>
 
                         <div style="clear: both"></div>
                     </nav>
@@ -177,13 +163,7 @@ println!(&quot;{}&quot;, size_of::&lt;Date&gt;());
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../file_formats/data.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
-                        <i class="fa fa-angle-left"></i>
-                    </a>
 
-                    <a rel="next" href="../file_formats/slotted_pages.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
-                        <i class="fa fa-angle-right"></i>
-                    </a>
             </nav>
 
         </div>
@@ -210,13 +190,13 @@ println!(&quot;{}&quot;, size_of::&lt;Date&gt;());
         </script>
 
 
-        <script src="../elasticlunr.min.js" type="text/javascript" charset="utf-8"></script>
-        <script src="../mark.min.js" type="text/javascript" charset="utf-8"></script>
-        <script src="../searcher.js" type="text/javascript" charset="utf-8"></script>
+        <script src="elasticlunr.min.js" type="text/javascript" charset="utf-8"></script>
+        <script src="mark.min.js" type="text/javascript" charset="utf-8"></script>
+        <script src="searcher.js" type="text/javascript" charset="utf-8"></script>
 
-        <script src="../clipboard.min.js" type="text/javascript" charset="utf-8"></script>
-        <script src="../highlight.js" type="text/javascript" charset="utf-8"></script>
-        <script src="../book.js" type="text/javascript" charset="utf-8"></script>
+        <script src="clipboard.min.js" type="text/javascript" charset="utf-8"></script>
+        <script src="highlight.js" type="text/javascript" charset="utf-8"></script>
+        <script src="book.js" type="text/javascript" charset="utf-8"></script>
 
         <!-- Custom JS scripts -->
 

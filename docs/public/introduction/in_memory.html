@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Data - Database Internals</title>
+        <title>In-Memory - Database Internals</title>
 
 
         <!-- Custom HTML head -->
@@ -31,6 +31,8 @@
 
         <!-- Custom theme stylesheets -->
 
+        <!-- MathJax -->
+        <script async type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
     </head>
     <body>
         <!-- Provide site root to javascript -->
@@ -81,7 +83,7 @@
 
         <nav id="sidebar" class="sidebar" aria-label="Table of contents">
             <div class="sidebar-scrollbox">
-                <ol class="chapter"><li class="chapter-item expanded "><a href="../introduction/index.html"><strong aria-hidden="true">1.</strong> Introduction</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../introduction/disk_base/index.html"><strong aria-hidden="true">1.1.</strong> Disk-Base</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../introduction/disk_base/hhd.html"><strong aria-hidden="true">1.1.1.</strong> HHD</a></li><li class="chapter-item expanded "><a href="../introduction/disk_base/ssd.html"><strong aria-hidden="true">1.1.2.</strong> SSD</a></li></ol></li><li class="chapter-item expanded "><a href="../introduction/in_memory.html"><strong aria-hidden="true">1.2.</strong> In-Memory</a></li></ol></li><li class="chapter-item expanded "><a href="../file_formats/index.html"><strong aria-hidden="true">2.</strong> File Formats</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../file_formats/data.html" class="active"><strong aria-hidden="true">2.1.</strong> Data</a></li><li class="chapter-item expanded "><a href="../file_formats/record.html"><strong aria-hidden="true">2.2.</strong> Record</a></li><li class="chapter-item expanded "><a href="../file_formats/slotted_pages.html"><strong aria-hidden="true">2.3.</strong> Slotted Pages</a></li><li class="chapter-item expanded "><a href="../file_formats/represent_tree.html"><strong aria-hidden="true">2.4.</strong> Represent Tree</a></li></ol></li><li class="chapter-item expanded "><a href="../page/index.html"><strong aria-hidden="true">3.</strong> Page</a></li><li class="chapter-item expanded "><a href="../indexing/index.html"><strong aria-hidden="true">4.</strong> Indexing</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../indexing/b_plus_tree.html"><strong aria-hidden="true">4.1.</strong> BPlusTree</a></li></ol></li></ol>
+                <ol class="chapter"><li class="chapter-item expanded "><a href="../introduction/index.html"><strong aria-hidden="true">1.</strong> Introduction</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../introduction/disk_base/index.html"><strong aria-hidden="true">1.1.</strong> Disk-Base</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../introduction/disk_base/hhd.html"><strong aria-hidden="true">1.1.1.</strong> HHD</a></li><li class="chapter-item expanded "><a href="../introduction/disk_base/ssd.html"><strong aria-hidden="true">1.1.2.</strong> SSD</a></li></ol></li><li class="chapter-item expanded "><a href="../introduction/in_memory.html" class="active"><strong aria-hidden="true">1.2.</strong> In-Memory</a></li></ol></li><li class="chapter-item expanded "><a href="../file_formats/index.html"><strong aria-hidden="true">2.</strong> File Formats</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../file_formats/data.html"><strong aria-hidden="true">2.1.</strong> Data</a></li><li class="chapter-item expanded "><a href="../file_formats/record.html"><strong aria-hidden="true">2.2.</strong> Record</a></li><li class="chapter-item expanded "><a href="../file_formats/slotted_pages.html"><strong aria-hidden="true">2.3.</strong> Slotted Pages</a></li><li class="chapter-item expanded "><a href="../file_formats/represent_tree.html"><strong aria-hidden="true">2.4.</strong> Represent Tree</a></li></ol></li><li class="chapter-item expanded "><a href="../page/index.html"><strong aria-hidden="true">3.</strong> Page</a></li><li class="chapter-item expanded "><a href="../indexing/index.html"><strong aria-hidden="true">4.</strong> Indexing</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../indexing/b_plus_tree.html"><strong aria-hidden="true">4.1.</strong> BPlusTree</a></li></ol></li></ol>
             </div>
             <div id="sidebar-resize-handle" class="sidebar-resize-handle"></div>
         </nav>
@@ -116,6 +118,12 @@
                         <a href="../print.html" title="Print this book" aria-label="Print this book">
                             <i id="print-button" class="fa fa-print"></i>
                         </a>
+                        <a href="https://github.com/nurmohammed840/flex" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/nurmohammed840/flex/tree/master/docs/src/introduction/in_memory.md" title="Suggest an edit" aria-label="Suggest an edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
 
                     </div>
                 </div>
@@ -142,69 +150,21 @@
 
                 <div id="content" class="content">
                     <main>
-                        <h2 id="binary-encoding"><a class="header" href="#binary-encoding">Binary Encoding</a></h2>
-<p>To store data on disk efficiently, it needs to be encoded using a format that is compact
-and easy to serialize and deserialize.</p>
-<h2 id="primitive-types"><a class="header" href="#primitive-types">Primitive Types</a></h2>
-<p>Keys and values have a type, such as integer, date, or string, and can be represented in their raw binary forms.</p>
-<p>Most numeric data types are represented as fixed-size values. When working with
-multibyte numeric values, it is important to use the same byte-order (endianness) for
-both encoding and decoding.</p>
-<h3 id="endianness"><a class="header" href="#endianness"><a href="https://en.wikipedia.org/wiki/Endianness">Endianness</a></a></h3>
-<p>Endianness determines the sequential order of bytes.</p>
-<p>Given a value <code>0x0001</code>, How do we actually align its two bytes in memory?</p>
-<p><img src="../images/endian_1.png" alt="Endian" /></p>
-<p>European languages conventionally use left-to-right writing system. That can be compared to big-endian, where the most significant digit goes to the left and least significant digits continue to the right: <code>1234</code></p>
-<p>Hebrew, Farsi, and Arabic, write words right-to-left. And so is little-endian, where the most significant digit is on the right. <code>4321</code></p>
-<p>Example:</p>
-<p><img src="../images/big_endian.svg" alt="BigEndian" />
-<img src="../images/little_endian.svg" alt="LittleEndian" /></p>
-<h2 id="strings-and-variable-size"><a class="header" href="#strings-and-variable-size">Strings and Variable-Size</a></h2>
-<p>Strings and other variable-size data types (such as arrays of fixed-size data) can be
-serialized as a number, representing the length of the array or string, followed by size
-bytes.</p>
-<h2 id="bit-packed-data-booleans-enums-and-flags"><a class="header" href="#bit-packed-data-booleans-enums-and-flags">Bit-Packed Data: Booleans, Enums, and Flags</a></h2>
-<p>Booleans can be represented either by using a single byte, or encoding true and
-false as 1 and 0 values. Since a boolean has only two values.</p>
-<h3 id="enum"><a class="header" href="#enum">Enum</a></h3>
-<p>Enumerated types are used to represent often repeated low-cardinality values. 
-For example, We can encode a tree node type using an enum:</p>
-<pre><pre class="playground"><code class="language-rust">
-<span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>enum NodeType {
-    Root,   // 0
-    Branch, // 1
-    Leaf    // 2
-};
-<span class="boring">}
-</span></code></pre></pre>
-<h3 id="flag"><a class="header" href="#flag">Flag</a></h3>
-<p>Another closely related concept is flags, kind of a combination of packed booleans
-and enums.</p>
-<p>Flag values can be read and written from the packed value using <a href="https://en.wikipedia.org/wiki/Mask_(computing)">bitmasks</a> and bitwise operators. Lets see this <a href="https://en.wikipedia.org/wiki/Truth_table">true table</a> </p>
-<p><img src="../images/truth_table.png" alt="truth_table" /></p>
-<p>Here gray recrangles represent <code>0</code> and greens are <code>1</code>.</p>
-<pre><pre class="playground"><code class="language-rust">
-<span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>let a = 0b_0011; // Bits     : 0  0  1  1
-let b = 0b_0101; // We need  :    ^     ^  
-
-println!(&quot;Out: {:04b}&quot;, a &amp; b); 
-<span class="boring">}
-</span></code></pre></pre>
-<p>We can represent bits (<code>a = 0011</code>) with prefix <code>0b</code>. Here we are using <code>&amp;</code> bitmask,</p>
+                        <h1 id="in-memory-database"><a class="header" href="#in-memory-database">In-Memory Database</a></h1>
+<p>In-memory database management systems store data primarily in memory and use the disk for recovery and logging.</p>
+<p>This kind of database maintain backups on disk to provide durability and
+prevent loss of the volatile data. Some databases store data exclusively in memory,
+without any durability guarantees</p>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../file_formats/index.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../introduction/disk_base/ssd.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <i class="fa fa-angle-left"></i>
                             </a>
 
-                            <a rel="next" href="../file_formats/record.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next" href="../file_formats/index.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <i class="fa fa-angle-right"></i>
                             </a>
 
@@ -214,11 +174,11 @@ println!(&quot;Out: {:04b}&quot;, a &amp; b);
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../file_formats/index.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../introduction/disk_base/ssd.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <i class="fa fa-angle-left"></i>
                     </a>
 
-                    <a rel="next" href="../file_formats/record.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next" href="../file_formats/index.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <i class="fa fa-angle-right"></i>
                     </a>
             </nav>

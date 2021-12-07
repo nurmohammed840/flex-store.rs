@@ -5,3 +5,8 @@ multilingual = false
 src = "src"
 title = "Database Internals"
 description = "Database"
+
+[output.html]
+mathjax-support = true
+git-repository-url = "https://github.com/nurmohammed840/flex"
+edit-url-template = "https://github.com/nurmohammed840/flex/tree/master/docs/{path}"
