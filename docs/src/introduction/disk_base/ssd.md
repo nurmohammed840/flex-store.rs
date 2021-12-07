@@ -4,8 +4,9 @@ A typical SSD is built of memory cells, connected into strings (typically 32 to 
 combined into blocks.
 
 
-<iframe width="560" height="315" src="https://www.youtube.com/embed/E7Up7VuFd8A" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
-
+<div style="position: relative; overflow: hidden; width: 100%; padding-top: 56.25%;">
+<iframe style="position: absolute; top: 0;  left: 0;  bottom: 0;  right: 0;  width: 100%;  height: 100%;" src="https://www.youtube.com/embed/E7Up7VuFd8A" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+</div>
 
 Depending on the exact technology used, a cell can hold
 one or multiple bits of data. 

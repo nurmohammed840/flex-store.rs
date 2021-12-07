@@ -145,7 +145,9 @@
                         <h1 id="hhd"><a class="header" href="#hhd">HHD</a></h1>
 <p>The smallest transfer unit of a spinning drive is a sector. Sector sizes
 typically range from 512 bytes to 4 Kb.</p>
-<iframe width="560" height="315" src="https://www.youtube.com/embed/wteUW2sL7bc" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+<div style="position: relative; overflow: hidden; width: 100%; padding-top: 56.25%;">
+<iframe style="position: absolute; top: 0;  left: 0;  bottom: 0;  right: 0;  width: 100%;  height: 100%;" src="https://www.youtube.com/embed/wteUW2sL7bc" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+</div>
 
                     </main>
 
@@ -176,6 +178,20 @@ typically range from 512 bytes to 4 Kb.</p>
 
         </div>
 
+        <!-- Livereload script (if served using the cli tool) -->
+        <script type="text/javascript">
+            var socket = new WebSocket("ws://localhost:3000/__livereload");
+            socket.onmessage = function (event) {
+                if (event.data === "reload") {
+                    socket.close();
+                    location.reload();
+                }
+            };
+
+            window.onbeforeunload = function() {
+                socket.close();
+            }
+        </script>
 
 
 
