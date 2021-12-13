@@ -7,3 +7,4 @@ edition = "2021"
 
 [dependencies]
 byte-seeker = { path = "../byte-seeker" }
+tokio = { version = "1.14.0", features = ["fs"] }

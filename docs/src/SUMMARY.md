@@ -13,7 +13,8 @@
     - [Slotted Pages](./file_formats/slotted_pages.md)
     - [Represent Tree](./file_formats/represent_tree.md)
 
-- [Page](./page/index.md)
+- [Implementing](./implementing/index.md)
+    - [Page](./implementing/page/index.md)
 
-- [Indexing](./indexing/index.md)
-    - [BPlusTree](./indexing/b_plus_tree.md)
+    - [Indexing](./implementing/indexing/index.md)
+        - [BPlusTree](./implementing/indexing/b_plus_tree.md)

@@ -1,6 +1,7 @@
 #![allow(warnings)]
 
-use std::{fs::File, io::*};
+// use std::{fs::File, io::*};
+use tokio::{fs, io::*};
 
 use meta::Metadata;
 use page_no::PageNo;
@@ -10,23 +11,24 @@ mod page;
 mod page_no;
 
 pub struct Pages<P: PageNo, const PS: usize> {
-    file: File,
+    file: fs::File,
     /// Total Page number
     len: P,
     metadata: Metadata<P, PS>,
 }
 
 impl<P: PageNo, const PS: usize> Pages<P, PS> {
-    fn open(path: &str) -> Result<Self> {
+    async fn open(path: &str) -> Result<Self> {
         let metadata = Metadata::<P, PS>::new();
 
-        let file = File::options()
+        let file = fs::OpenOptions::new()
             .read(true)
             .write(true)
             .create(true)
-            .open(path)?;
+            .open(path)
+            .await?;
 
-        let file_len = file.metadata()?.len();
+        let file_len = file.metadata().await?.len();
         // So that, There is no residue bytes.
         if file_len % PS as u64 != 0 {
             return Err(ErrorKind::InvalidData.into());
