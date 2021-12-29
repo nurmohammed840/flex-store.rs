@@ -1,6 +1,9 @@
-use std::ops::{Add, Mul};
+use std::{
+    hash::Hash,
+    ops::{Add, Mul},
+};
 
-pub trait PageNo: Default /* + Mul + Add + TryFrom<u32>  */ {
+pub trait PageNo: TryInto<u32> + Eq + Hash + Unpin + Copy  {
     /// The size of this type in bytes
     const NBYTES: usize;
     fn new(_: usize) -> Self;
@@ -20,12 +23,13 @@ macro_rules! impl_trait {
 }
 impl_trait!(PageNo for u8:1 u16:2 u32:4);
 
-#[derive(Default)]
+#[derive(Hash, PartialEq, Eq, Clone, Copy)]
 pub struct U24(u32);
 
 impl PageNo for U24 {
     const NBYTES: usize = 3;
     fn new(num: usize) -> Self {
+        assert!(num < 16777215);
         Self(num.try_into().unwrap())
     }
     fn to_bytes(&self) -> Vec<u8> {
@@ -39,6 +43,19 @@ impl PageNo for U24 {
     }
 }
 
+impl From<U24> for u32 {
+    fn from(num: U24) -> Self {
+        num.0
+    }
+}
+
+// impl From<u32> for U24 {
+//     fn from(num: u32) -> Self {
+//         assert!(num < 16777215);
+//         Self(num)
+//     }
+// }
+
 // impl Mul for U24 {
 //     type Output = Self;
 //     fn mul(self, rhs: Self) -> Self {
@@ -49,12 +66,5 @@ impl PageNo for U24 {
 //     type Output = Self;
 //     fn add(self, rhs: Self) -> Self {
 //         (self.0 + rhs.0).into()
-//     }
-// }
-
-// impl From<u32> for U24 {
-//     fn from(num: u32) -> Self {
-//         assert!(num < 16777215);
-//         Self(num)
 //     }
 // }

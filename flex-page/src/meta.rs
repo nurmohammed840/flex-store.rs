@@ -10,7 +10,7 @@ use crate::page_no::PageNo;
 pub struct Metadata<P, const PAGE_SIZE: usize> {
     size_info: SizeInfo,
     /// Free list page pointer
-    free_list_page_no: P,
+    free_list: P,
     data: HashMap<u64, Vec<u8>>,
 }
 
@@ -23,7 +23,7 @@ impl<P: PageNo, const PAGE_SIZE: usize> Metadata<P, PAGE_SIZE> {
                 page_no_nbytes: P::NBYTES as u8,
                 page_size: PAGE_SIZE as u32,
             },
-            free_list_page_no: P::default(),
+            free_list: P::new(1),
             data: HashMap::new(),
         }
     }
@@ -36,7 +36,7 @@ impl<P: PageNo, const PAGE_SIZE: usize> Metadata<P, PAGE_SIZE> {
             return Err(size_info);
         }
 
-        self.free_list_page_no = P::from_bytes(reader.bytes(P::NBYTES).to_vec());
+        self.free_list = P::from_bytes(reader.bytes(P::NBYTES).to_vec());
 
         let data_len: u16 = reader.read();
         self.data = HashMap::with_capacity(data_len.into());
@@ -54,7 +54,7 @@ impl<P: PageNo, const PAGE_SIZE: usize> Metadata<P, PAGE_SIZE> {
         let mut bytes = Vec::new();
 
         bytes.extend(self.size_info.to_bytes());
-        bytes.extend(self.free_list_page_no.to_bytes());
+        bytes.extend(self.free_list.to_bytes());
 
         bytes.write(self.data.len() as u16);
         for (key, value) in &self.data {
@@ -105,7 +105,7 @@ mod tests {
         let mut m2 = Metadata::<u32, 8192>::new();
         let mut m3 = Metadata::<u32, 8192>::new();
 
-        m1.free_list_page_no = 123;
+        m1.free_list = 123;
         for i in 0..1000 {
             m1.insert(i, b"Nice!".to_vec());
         }
@@ -120,7 +120,7 @@ mod tests {
         assert_eq!(a, b);
         assert_eq!(b, c);
         assert_eq!(m3.size_info, m1.size_info);
-        assert_eq!(m1.free_list_page_no, m3.free_list_page_no);
+        assert_eq!(m1.free_list, m3.free_list);
     }
 
     #[test]
