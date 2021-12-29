@@ -1,38 +1,36 @@
 use std::{
     collections::HashMap,
-    fs::File,
     future::Future,
     hash::Hash,
     pin::Pin,
-    sync::{Arc, RwLock},
+    sync::RwLock,
     task::{Context, Poll, Waker},
 };
 
 type LockersMap<K> = RwLock<HashMap<K, Vec<Waker>>>;
 
 pub struct Lock<'a, K: Eq + Hash> {
-    no: K,
+    num: K,
     lockers: &'a LockersMap<K>,
 }
 impl<'a, K: Eq + Hash + Clone> Lock<'a, K> {
-    fn new(lockers: &'a LockersMap<K>, no: K) -> Self {
-        lockers.write().unwrap().insert(no.clone(), Vec::new());
-        Self { no, lockers }
+    fn new(lockers: &'a LockersMap<K>, num: K) -> Self {
+        lockers.write().unwrap().insert(num.clone(), Vec::new());
+        Self { num, lockers }
     }
 }
 impl<K: Eq + Hash> Drop for Lock<'_, K> {
     fn drop(&mut self) {
-        for waker in self.lockers.write().unwrap().remove(&self.no).unwrap() {
+        for waker in self.lockers.write().unwrap().remove(&self.num).unwrap() {
             waker.wake();
         }
     }
 }
 
 pub struct UnLock<'a, K> {
-    no: K,
+    num: K,
     state: bool,
     lockers: &'a LockersMap<K>,
-    data: Option<()>,
 }
 impl<'a, K: Unpin + Eq + Hash> Future for UnLock<'a, K> {
     type Output = ();
@@ -42,32 +40,32 @@ impl<'a, K: Unpin + Eq + Hash> Future for UnLock<'a, K> {
         }
         let this = self.get_mut();
         this.state = true;
-        {
-            let mut lockers = this.lockers.write().unwrap();
-            let wakers = lockers.get_mut(&this.no).unwrap();
-            wakers.push(cx.waker().clone());
-        }
+        this.lockers
+            .write()
+            .unwrap()
+            .get_mut(&this.num)
+            .unwrap()
+            .push(cx.waker().clone());
+
         Poll::Pending
     }
 }
-
 
 pub struct Lockers<K>(LockersMap<K>);
 impl<K: Eq + Hash + Clone + Unpin> Lockers<K> {
     pub fn new() -> Self {
         Self(RwLock::new(HashMap::new()))
     }
-    pub fn unlock(&self, no: K) -> UnLock<K> {
+    pub fn unlock(&self, num: K) -> UnLock<K> {
         UnLock {
-            state: self.0.read().unwrap().get(&no).is_none(),
+            state: self.0.read().unwrap().get(&num).is_none(),
             lockers: &self.0,
-            data: None,
-            no,
+            num,
         }
     }
-    pub async fn lock(&self, no: K) -> Lock<'_, K> {
-        self.unlock(no.clone()).await;
-        Lock::new(&self.0, no)
+    pub async fn lock(&self, num: K) -> Lock<'_, K> {
+        self.unlock(num.clone()).await;
+        Lock::new(&self.0, num)
     }
 }
 
@@ -125,6 +123,6 @@ mod tests {
             lockers.unlock(0).await;
             step(3);
         });
-        tokio::join!(t1, t2);
+        let _ = tokio::join!(t1, t2);
     }
 }

@@ -1,12 +1,10 @@
-use std::{
-    hash::Hash,
-    ops::{Add, Mul},
-};
+use std::hash::Hash;
 
-pub trait PageNo: TryInto<u32> + Eq + Hash + Unpin + Copy  {
+pub trait PageNo: Eq + Hash + Unpin + Copy {
     /// The size of this type in bytes
     const NBYTES: usize;
     fn new(_: usize) -> Self;
+    fn as_u32(self) -> u32;
     fn to_bytes(&self) -> Vec<u8>;
     fn from_bytes(bytes: Vec<u8>) -> Self;
 }
@@ -16,6 +14,7 @@ macro_rules! impl_trait {
         impl $name for $t {
             const NBYTES: usize = $S;
             fn new(num: usize) -> Self { num.try_into().unwrap() }
+            fn as_u32(self) -> u32 { self.try_into().unwrap() }
             fn to_bytes(&self) -> Vec<u8> { self.to_le_bytes().to_vec() }
             fn from_bytes(bytes: Vec<u8>) -> Self { Self::from_le_bytes(bytes.try_into().unwrap()) }
         }
@@ -41,30 +40,7 @@ impl PageNo for U24 {
         let [a, b, c] = buf;
         Self(u32::from_le_bytes([a, b, c, 0]))
     }
-}
-
-impl From<U24> for u32 {
-    fn from(num: U24) -> Self {
-        num.0
+    fn as_u32(self) -> u32 {
+        self.0
     }
 }
-
-// impl From<u32> for U24 {
-//     fn from(num: u32) -> Self {
-//         assert!(num < 16777215);
-//         Self(num)
-//     }
-// }
-
-// impl Mul for U24 {
-//     type Output = Self;
-//     fn mul(self, rhs: Self) -> Self {
-//         (self.0 * rhs.0).into()
-//     }
-// }
-// impl Add for U24 {
-//     type Output = Self;
-//     fn add(self, rhs: Self) -> Self {
-//         (self.0 + rhs.0).into()
-//     }
-// }

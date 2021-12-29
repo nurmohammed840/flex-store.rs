@@ -1,5 +1,3 @@
-#![allow(warnings)]
-
 mod file;
 mod locker;
 mod meta;
@@ -12,26 +10,21 @@ use meta::Metadata;
 use page::Page;
 use page_no::PageNo;
 use std::{
-    collections::HashMap,
     fs::File,
-    future::Future,
     io::{ErrorKind, Result},
-    sync::{Arc, Mutex, RwLock},
-    task::Waker,
 };
-use tokio::task;
 
-pub struct Pages<P: PageNo, const PS: usize> {
+pub struct Pages<K: PageNo, const NBYTES: usize> {
     /// Total Page number
-    len: P,
+    _len: K,
     file: &'static File,
-    metadata: Metadata<P, PS>,
-    lockers: Lockers<P>,
+    lockers: Lockers<K>,
+    _metadata: Metadata<K, NBYTES>,
 }
 
-impl<P: PageNo, const PS: usize> Pages<P, PS> {
-    fn open(path: &str) -> Result<Self> {
-        let metadata = Metadata::<P, PS>::new();
+impl<K: PageNo, const NBYTES: usize> Pages<K, NBYTES> {
+    pub fn open(path: &str) -> Result<Self> {
+        let metadata = Metadata::<K, NBYTES>::new();
 
         let file = File::options()
             .read(true)
@@ -41,15 +34,15 @@ impl<P: PageNo, const PS: usize> Pages<P, PS> {
 
         let file_len = file.metadata()?.len();
         // So that, There is no residue bytes.
-        if file_len % PS as u64 != 0 {
+        if file_len % NBYTES as u64 != 0 {
             return Err(ErrorKind::InvalidData.into());
         }
 
         let this = Self {
-            metadata,
+            _metadata: metadata,
             file: Box::leak(Box::new(file)),
             lockers: Lockers::new(),
-            len: P::new(file_len as usize / PS),
+            _len: K::new(file_len as usize / NBYTES),
         };
         // New File? Write default metadata.
         if file_len == 0 {}
@@ -60,8 +53,8 @@ impl<P: PageNo, const PS: usize> Pages<P, PS> {
     fn _write_raw_meta() {}
 
     fn _read_raw_meta() -> Vec<u8> {
-        let mut raw: Vec<u8> = Vec::with_capacity(PS);
-        let mut page_no = 0;
+        let raw: Vec<u8> = Vec::with_capacity(NBYTES);
+        let page_no = 0;
         loop {
             // let buf = pages.read_page(root_page_no)?;
             // // every mata pages contain first 4 byte as next page pointer.
@@ -73,59 +66,29 @@ impl<P: PageNo, const PS: usize> Pages<P, PS> {
         }
     }
 
-    async fn read(&self, n: P) -> Result<[u8; PS]> {
-        self.lockers.unlock(n).await;
-        let file = self.file;
-        // let num: u32 = n.try_into().unwrap();
-        task::spawn_blocking(move || {
-            let mut buf = [0; PS];
-            // file.read(&mut buf, PS as u64 * n.try_into().unwrap() as u64)?;
-            Ok(buf)
-        })
-        .await
-        .unwrap()
+    fn read_sync(file: &File, num: u64) -> Result<[u8; NBYTES]> {
+        let mut buf = [0; NBYTES];
+        file.read_exact_at(&mut buf, NBYTES as u64 * num)?;
+        Ok(buf)
     }
 
-    // async fn get(&self, no: P) -> Page<'_, P, PS> {
-    //     Page {
-    //         no,
-    //         lock: self.lockers.lock(no).await,
-    //         file: self.file,
-    //         buf: [0; PS],
-    //     }
-    // }
+    async fn read_unchecked(file: &'static File, num: K) -> Result<[u8; NBYTES]> {
+        let num = num.as_u32() as u64;
+        tokio::task::spawn_blocking(move || Self::read_sync(file, num))
+            .await
+            .unwrap()
+    }
 
-    // async fn lock(&self, no: &P) {
-    //     let state = self.lockers.read().unwrap().get(no).is_none();
-    //     let mut lockers = self.lockers.write().unwrap();
-    //     let lock = WriteLock {
-    //         state,
-    //         wakers: lockers.get_mut(no),
-    //     };
-    //     lock.await;
-    // }
+    pub async fn read(&self, num: K) -> Result<[u8; NBYTES]> {
+        self.lockers.unlock(num).await;
+        Self::read_unchecked(self.file, num).await
+    }
 
-    // async fn _write(&self, page_no: u32, buf: [u8; PS]) -> Result<()> {
-    //     let file = self.file;
-    //     task::spawn_blocking(move || {
-    //         file.write(&buf, PS as u64 * page_no as u64)?;
-    //         Ok(())
-    //     })
-    //     .await
-    //     .unwrap()
-    // }
-
-    // fn read(&self, page_no: P) -> Result<[u8; PS]> {
-    //     let lockers = self.lockers.lock().unwrap();
-    //     match lockers.get(&page_no) {
-    //         Some(page) => {}
-    //         None => {}
-    //     }
-    //     // lockers
-
-    //     // let page_no = page_no.try_into().unwrap();
-    //     // self._read(page_no);
-
-    //     todo!()
-    // }
+    pub async fn goto(&self, num: K) -> Page<'_, K, NBYTES> {
+        Page {
+            num,
+            file: self.file,
+            _lock: self.lockers.lock(num).await,
+        }
+    }
 }
