@@ -72,13 +72,9 @@ impl<K: Eq + Hash + Clone + Unpin> Lockers<K> {
 #[cfg(test)]
 mod tests {
     use super::Lockers;
-    use std::{
-        sync::{
-            atomic::{AtomicU8, Ordering},
-            Arc,
-        },
-        time::Duration,
-    };
+    use std::sync::atomic::{AtomicU8, Ordering};
+    use std::sync::Arc;
+    use std::time::Duration;
     use tokio::time::{sleep, timeout};
 
     #[tokio::test]

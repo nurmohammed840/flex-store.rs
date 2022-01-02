@@ -7,19 +7,13 @@ pub use os::unix::fs::FileExt;
 pub trait FileExt {
     fn read_exact_at(&self, buf: &mut [u8], offset: u64) -> Result<usize>;
     fn write_all_at(&self, buf: &[u8], offset: u64) -> Result<usize>;
-    fn write_all(&self) -> Result<()>;
 }
 #[cfg(target_family = "windows")]
 impl FileExt for File {
-    
     fn read_exact_at(&self, buf: &mut [u8], offset: u64) -> Result<usize> {
         os::windows::fs::FileExt::seek_read(self, buf, offset)
     }
     fn write_all_at(&self, buf: &[u8], offset: u64) -> Result<usize> {
         os::windows::fs::FileExt::seek_write(self, buf, offset)
-    }
-
-    fn write_all(&self) -> Result<()> {
-        todo!()
     }
 }

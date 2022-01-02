@@ -1,95 +1,86 @@
-use byte_seeker::{BytesReaderLE, BytesSeeker, BytesWriterLE};
 
 use std::{
-    collections::{hash_map::DefaultHasher, HashMap},
-    hash::{Hash, Hasher},
+    io::{Error, ErrorKind, Result, Cursor},
+    sync::atomic::{AtomicU32, Ordering},
 };
 
 use crate::page_no::PageNo;
+use bytes::{DataView, Reader};
 
-pub struct Metadata<P, const PAGE_SIZE: usize> {
-    _size_info: SizeInfo,
+pub struct Meta<K: PageNo, const NBYTES: usize>
+where
+    [u8; NBYTES - 8]:,
+{
+    size_info: SizeInfo,
     /// Free list page pointer
-    _free_list: P,
-    _data: HashMap<u64, Vec<u8>>,
+    free_list: AtomicU32,
+    pub data: [u8; NBYTES - 8],
 }
 
-impl<P: PageNo, const PAGE_SIZE: usize> Metadata<P, PAGE_SIZE> {
+impl<K, const NBYTES: usize> Meta<K, NBYTES>
+where
+    K: PageNo,
+    [u8; NBYTES - 8]:,
+{
     pub fn new() -> Self {
-        assert!(PAGE_SIZE >= 64, "Page size should >= 64 bytes");
-        assert!(PAGE_SIZE < 16777216, "Page size should < 16mb");
+        assert!(NBYTES >= 64, "Page size should >= 64 bytes");
+        assert!(NBYTES < 16777216, "Page size should < 16mb");
         Self {
-            _size_info: SizeInfo {
-                page_no_nbytes: P::NBYTES as u8,
-                page_size: PAGE_SIZE as u32,
+            size_info: SizeInfo {
+                block_size: NBYTES as u32,
+                pages_len_nbytes: K::SIZE as u8,
             },
-            _free_list: P::new(1),
-            _data: HashMap::new(),
+            free_list: AtomicU32::new(1),
+            data: [0; NBYTES - 8],
         }
     }
-    /// This funtion return expected `SizeInfo` as err!
-    pub(crate) fn _extend_from_bytes(&mut self, bytes: &[u8]) -> Result<(), SizeInfo> {
-        let mut reader = BytesSeeker::new(bytes);
 
-        let size_info = SizeInfo::_from(reader.buf::<4>());
-        if size_info != self._size_info {
-            return Err(size_info);
+    /// This funtion return expected `SizeInfo` as error.
+    pub(crate) fn extend_from(&mut self, bytes: [u8; NBYTES]) -> Result<()>
+    where
+        [u8; K::SIZE]:,
+    {
+        let mut reader = Cursor::new(&bytes);
+        let size_info = SizeInfo::from(reader.buf::<4>()?);
+
+        if size_info != self.size_info {
+            return Err(Error::new(
+                ErrorKind::InvalidData,
+                format!("Expected {:?}, but got: {:?}", self.size_info, size_info),
+            ));
         }
-
-        self._free_list = P::from_bytes(reader.bytes(P::NBYTES).to_vec());
-
-        let data_len: u16 = reader.read();
-        self._data = HashMap::with_capacity(data_len.into());
-
-        for _ in 0..data_len {
-            let key: u64 = reader.read();
-            let vlen: u16 = reader.read();
-            let value = reader.bytes(vlen.into()).to_vec();
-            self._data.insert(key, value);
-        }
+        self.free_list = AtomicU32::new(reader.get::<u32>()?);
+        self.data.copy_from_slice(reader.remaining_slice());
         Ok(())
     }
 
-    pub(crate) fn _to_bytes(&self) -> Vec<u8> {
-        let mut bytes = Vec::new();
-
-        bytes.extend(self._size_info._to_bytes());
-        bytes.extend(self._free_list.to_bytes());
-
-        bytes.write(self._data.len() as u16);
-        for (key, value) in &self._data {
-            bytes.write(*key);
-            // Max Value Size: 64 kb
-            let vlen = value.len() as u16;
-            bytes.write(vlen);
-            bytes.extend(&value[..vlen.into()]);
-        }
+    pub(crate) fn to_bytes(&self) -> [u8; NBYTES]
+    where
+        [u8; K::SIZE]:,
+    {
+        let mut bytes = [0; NBYTES];
+        bytes.set_bytes(0, &self.size_info.to_bytes());
+        bytes.set::<u32>(4, self.free_list.load(Ordering::Relaxed));
+        bytes.set_bytes(8, &self.data);
         bytes
-    }
-
-    pub fn _insert<T: Hash>(&mut self, key: T, value: Vec<u8>) {
-        let mut hasher = DefaultHasher::new();
-        key.hash(&mut hasher);
-        let hash = hasher.finish();
-        self._data.insert(hash, value);
     }
 }
 
 #[derive(PartialEq, Debug)]
 pub struct SizeInfo {
-    page_size: u32,
-    page_no_nbytes: u8,
+    block_size: u32,
+    pages_len_nbytes: u8,
 }
 impl SizeInfo {
-    fn _to_bytes(&self) -> [u8; 4] {
-        let [x, y, z, _] = self.page_size.to_le_bytes();
-        [self.page_no_nbytes, x, y, z]
+    fn to_bytes(&self) -> [u8; 4] {
+        let [x, y, z, _] = self.block_size.to_le_bytes();
+        [self.pages_len_nbytes, x, y, z]
     }
-    fn _from(buf: [u8; 4]) -> Self {
+    fn from(buf: [u8; 4]) -> Self {
         let [a, b, c, d] = buf;
         Self {
-            page_no_nbytes: a,
-            page_size: u32::from_le_bytes([b, c, d, 0]),
+            pages_len_nbytes: a,
+            block_size: u32::from_le_bytes([b, c, d, 0]),
         }
     }
 }
@@ -97,52 +88,16 @@ impl SizeInfo {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::collections::BTreeMap;
-
-    #[test]
-    fn metadata() {
-        let mut m1 = Metadata::<u32, 8192>::new();
-        let mut m2 = Metadata::<u32, 8192>::new();
-        let mut m3 = Metadata::<u32, 8192>::new();
-
-        m1._free_list = 123;
-        for i in 0..1000 {
-            m1._insert(i, b"Nice!".to_vec());
-        }
-
-        m2._extend_from_bytes(&m1._to_bytes()).unwrap();
-        m3._extend_from_bytes(&m2._to_bytes()).unwrap();
-        // Rust, default hashmap doesn't maintain ordering...
-        let a = create_btree_map_from_hash_map(&m1._data);
-        let b = create_btree_map_from_hash_map(&m2._data);
-        let c = create_btree_map_from_hash_map(&m3._data);
-
-        assert_eq!(a, b);
-        assert_eq!(b, c);
-        assert_eq!(m3._size_info, m1._size_info);
-        assert_eq!(m1._free_list, m3._free_list);
-    }
 
     #[test]
     fn metadata_size_info() {
-        let m1 = Metadata::<u16, 4096>::new();
-        let mut m2 = Metadata::<u32, 8192>::new();
-        assert_eq!(m1._to_bytes().len(), 8);
-        assert_eq!(m2._to_bytes().len(), 10);
-        assert_eq!(
-            m2._extend_from_bytes(&m1._to_bytes()),
-            Err(SizeInfo {
-                page_size: 4096,
-                page_no_nbytes: 2
-            })
-        );
-    }
-
-    fn create_btree_map_from_hash_map(hashmap: &HashMap<u64, Vec<u8>>) -> BTreeMap<&u64, &Vec<u8>> {
-        let mut btreemap = BTreeMap::new();
-        for (k, v) in hashmap {
-            btreemap.insert(k, v);
-        }
-        btreemap
+        let m1 = Meta::<u16, 4096>::new();
+        let mut m2 = Meta::<u32, 8192>::new();
+        assert_eq!(m1.to_bytes().len(), 8);
+        assert_eq!(m2.to_bytes().len(), 10);
+        // assert_eq!(
+        //     "Expected SizeInfo { page_size: 8192, page_len_nbytes: 4 }, but got: SizeInfo { page_size: 4096, page_len_nbytes: 2 }",
+        //      m2.extend_from(m1.to_bytes()).err().unwrap().to_string()
+        // );
     }
 }

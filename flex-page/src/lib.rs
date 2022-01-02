@@ -1,4 +1,9 @@
+#![allow(warnings)]
+#![feature(cursor_remaining)]
+#![feature(generic_const_exprs)]
+
 mod file;
+mod free;
 mod locker;
 mod meta;
 mod page;
@@ -6,25 +11,34 @@ mod page_no;
 
 use file::FileExt;
 use locker::Lockers;
-use meta::Metadata;
+use meta::Meta;
 use page::Page;
 use page_no::PageNo;
 use std::{
     fs::File,
     io::{ErrorKind, Result},
+    sync::atomic::{AtomicU32, Ordering}, future::Future,
 };
 
-pub struct Pages<K: PageNo, const NBYTES: usize> {
+pub struct Pages<K: PageNo, const NBYTES: usize>
+where
+    [u8; NBYTES - 8]:,
+    [u8; K::SIZE]:,
+{
     /// Total Page number
-    _len: K,
+    len: AtomicU32,
     file: &'static File,
     lockers: Lockers<K>,
-    _metadata: Metadata<K, NBYTES>,
+    meta: Meta<K, NBYTES>,
 }
 
-impl<K: PageNo, const NBYTES: usize> Pages<K, NBYTES> {
+impl<K: PageNo, const NBYTES: usize> Pages<K, NBYTES>
+where
+    [u8; NBYTES - 8]:,
+    [u8; K::SIZE]:,
+{
     pub fn open(path: &str) -> Result<Self> {
-        let metadata = Metadata::<K, NBYTES>::new();
+        let metadata = Meta::<K, NBYTES>::new();
 
         let file = File::options()
             .read(true)
@@ -38,32 +52,29 @@ impl<K: PageNo, const NBYTES: usize> Pages<K, NBYTES> {
             return Err(ErrorKind::InvalidData.into());
         }
 
-        let this = Self {
-            _metadata: metadata,
+        let mut pages = Self {
+            meta: metadata,
             file: Box::leak(Box::new(file)),
             lockers: Lockers::new(),
-            _len: K::new(file_len as usize / NBYTES),
+            len: AtomicU32::new(file_len as u32 / NBYTES as u32),
         };
-        // New File? Write default metadata.
-        if file_len == 0 {}
 
-        Ok(this)
+        // New File? Write metadata.
+        if file_len == 0 {
+            pages.write_metadata()?;
+        }
+        // Exist File? Read metadata.
+        else {
+            let mut bytes = [0; NBYTES];
+            pages.file.read_exact_at(&mut bytes, 0)?;
+            pages.meta.extend_from(bytes)?;
+        }
+        Ok(pages)
     }
 
-    fn _write_raw_meta() {}
-
-    fn _read_raw_meta() -> Vec<u8> {
-        let raw: Vec<u8> = Vec::with_capacity(NBYTES);
-        let page_no = 0;
-        loop {
-            // let buf = pages.read_page(root_page_no)?;
-            // // every mata pages contain first 4 byte as next page pointer.
-            // root_page_no = u32::from_le_bytes(buf[..4].try_into().unwrap());
-            // raw.extend_from_slice(&buf[4..]);
-            if page_no == 0 {
-                return raw;
-            }
-        }
+    pub fn write_metadata(&self) -> Result<()> {
+        self.file.write_all_at(&self.meta.to_bytes(), 0)?;
+        Ok(())
     }
 
     fn read_sync(file: &File, num: u64) -> Result<[u8; NBYTES]> {
@@ -72,7 +83,7 @@ impl<K: PageNo, const NBYTES: usize> Pages<K, NBYTES> {
         Ok(buf)
     }
 
-    async fn read_unchecked(file: &'static File, num: K) -> Result<[u8; NBYTES]> {
+    async fn read_async(file: &'static File, num: K) -> Result<[u8; NBYTES]> {
         let num = num.as_u32() as u64;
         tokio::task::spawn_blocking(move || Self::read_sync(file, num))
             .await
@@ -81,7 +92,7 @@ impl<K: PageNo, const NBYTES: usize> Pages<K, NBYTES> {
 
     pub async fn read(&self, num: K) -> Result<[u8; NBYTES]> {
         self.lockers.unlock(num).await;
-        Self::read_unchecked(self.file, num).await
+        Self::read_async(self.file, num).await
     }
 
     pub async fn goto(&self, num: K) -> Page<'_, K, NBYTES> {
@@ -90,5 +101,33 @@ impl<K: PageNo, const NBYTES: usize> Pages<K, NBYTES> {
             file: self.file,
             _lock: self.lockers.lock(num).await,
         }
+    }
+
+    pub fn create(&self) -> impl Future<Output = Page<'_, K, NBYTES>>   {
+        let num = K::new(self.len.fetch_add(1, Ordering::SeqCst));
+        self.goto(num)
+    }
+}
+
+impl<K: PageNo, const NBYTES: usize> Drop for Pages<K, NBYTES>
+where
+    [u8; NBYTES - 8]:,
+    [u8; K::SIZE]:,
+{
+    fn drop(&mut self) {
+        let _ = self.write_metadata();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use bytes::DataView;
+
+    use super::*;
+
+    #[test]
+    fn basic() {
+        let _pages: Pages<u16, 4096> = Pages::open("test.db").unwrap();
+        _pages.write_metadata();
     }
 }
