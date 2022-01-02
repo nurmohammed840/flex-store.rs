@@ -10,36 +10,45 @@ mod page;
 mod page_no;
 
 use file::FileExt;
+use free::FreeList;
 use locker::Lockers;
 use meta::Meta;
 use page::Page;
 use page_no::PageNo;
 use std::{
     fs::File,
+    future::Future,
     io::{ErrorKind, Result},
-    sync::atomic::{AtomicU32, Ordering}, future::Future,
+    sync::{
+        atomic::{AtomicU32, Ordering},
+        Mutex,
+    },
 };
 
-pub struct Pages<K: PageNo, const NBYTES: usize>
+pub struct Pages<K, const NBYTES: usize>
 where
-    [u8; NBYTES - 8]:,
-    [u8; K::SIZE]:,
+    K: PageNo,
+    [(); K::SIZE]:,
+    [(); NBYTES - 8]:,
+    [(); ((NBYTES - ((2 * K::SIZE) + 4)) / K::SIZE)]:,
 {
     /// Total Page number
     len: AtomicU32,
     file: &'static File,
     lockers: Lockers<K>,
     meta: Meta<K, NBYTES>,
+    free: Mutex<FreeList<K, NBYTES>>,
 }
 
-impl<K: PageNo, const NBYTES: usize> Pages<K, NBYTES>
+impl<K, const NBYTES: usize> Pages<K, NBYTES>
 where
-    [u8; NBYTES - 8]:,
-    [u8; K::SIZE]:,
+    K: PageNo,
+    [(); K::SIZE]:,
+    [(); NBYTES - 8]:,
+    [(); ((NBYTES - ((2 * K::SIZE) + 4)) / K::SIZE)]:,
 {
     pub fn open(path: &str) -> Result<Self> {
-        let metadata = Meta::<K, NBYTES>::new();
-
+        let mut meta = Meta::<K, NBYTES>::new();
         let file = File::options()
             .read(true)
             .write(true)
@@ -51,25 +60,24 @@ where
         if file_len % NBYTES as u64 != 0 {
             return Err(ErrorKind::InvalidData.into());
         }
-
-        let mut pages = Self {
-            meta: metadata,
-            file: Box::leak(Box::new(file)),
-            lockers: Lockers::new(),
-            len: AtomicU32::new(file_len as u32 / NBYTES as u32),
-        };
-
         // New File? Write metadata.
         if file_len == 0 {
-            pages.write_metadata()?;
+            file.write_all_at(&meta.to_bytes(), 0)?;
         }
         // Exist File? Read metadata.
         else {
             let mut bytes = [0; NBYTES];
-            pages.file.read_exact_at(&mut bytes, 0)?;
-            pages.meta.extend_from(bytes)?;
+            file.read_exact_at(&mut bytes, 0)?;
+            meta.extend_from(bytes)?;
         }
-        Ok(pages)
+        let buf = Self::read_sync(&file, meta.last_free_page().into())?;
+        Ok(Self {
+            meta,
+            free: Mutex::new(FreeList::from(buf)),
+            file: Box::leak(Box::new(file)),
+            lockers: Lockers::new(),
+            len: AtomicU32::new(file_len as u32 / NBYTES as u32),
+        })
     }
 
     pub fn write_metadata(&self) -> Result<()> {
@@ -103,16 +111,18 @@ where
         }
     }
 
-    pub fn create(&self) -> impl Future<Output = Page<'_, K, NBYTES>>   {
+    pub fn create(&self) -> impl Future<Output = Page<'_, K, NBYTES>> {
         let num = K::new(self.len.fetch_add(1, Ordering::SeqCst));
         self.goto(num)
     }
 }
 
-impl<K: PageNo, const NBYTES: usize> Drop for Pages<K, NBYTES>
+impl<K, const NBYTES: usize> Drop for Pages<K, NBYTES>
 where
-    [u8; NBYTES - 8]:,
-    [u8; K::SIZE]:,
+    K: PageNo,
+    [(); K::SIZE]:,
+    [(); NBYTES - 8]:,
+    [(); ((NBYTES - ((2 * K::SIZE) + 4)) / K::SIZE)]:,
 {
     fn drop(&mut self) {
         let _ = self.write_metadata();
@@ -121,8 +131,6 @@ where
 
 #[cfg(test)]
 mod tests {
-    use bytes::DataView;
-
     use super::*;
 
     #[test]

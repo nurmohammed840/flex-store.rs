@@ -1,11 +1,10 @@
-
 use std::{
-    io::{Error, ErrorKind, Result, Cursor},
+    io::{Cursor, Error, ErrorKind, Result, Write},
     sync::atomic::{AtomicU32, Ordering},
 };
 
 use crate::page_no::PageNo;
-use bytes::{DataView, Reader};
+use utils::cursor::Reader;
 
 pub struct Meta<K: PageNo, const NBYTES: usize>
 where
@@ -13,7 +12,7 @@ where
 {
     size_info: SizeInfo,
     /// Free list page pointer
-    free_list: AtomicU32,
+    last_free_page: AtomicU32,
     pub data: [u8; NBYTES - 8],
 }
 
@@ -30,9 +29,13 @@ where
                 block_size: NBYTES as u32,
                 pages_len_nbytes: K::SIZE as u8,
             },
-            free_list: AtomicU32::new(1),
+            last_free_page: AtomicU32::new(1),
             data: [0; NBYTES - 8],
         }
+    }
+
+    pub fn last_free_page(&self) -> u32 {
+        self.last_free_page.load(Ordering::SeqCst)
     }
 
     /// This funtion return expected `SizeInfo` as error.
@@ -49,7 +52,7 @@ where
                 format!("Expected {:?}, but got: {:?}", self.size_info, size_info),
             ));
         }
-        self.free_list = AtomicU32::new(reader.get::<u32>()?);
+        self.last_free_page = AtomicU32::new(reader.get::<u32>()?);
         self.data.copy_from_slice(reader.remaining_slice());
         Ok(())
     }
@@ -58,11 +61,14 @@ where
     where
         [u8; K::SIZE]:,
     {
-        let mut bytes = [0; NBYTES];
-        bytes.set_bytes(0, &self.size_info.to_bytes());
-        bytes.set::<u32>(4, self.free_list.load(Ordering::Relaxed));
-        bytes.set_bytes(8, &self.data);
+        let mut buf = [0; NBYTES];
+        let mut bytes = Cursor::new(buf.as_mut());
+        bytes.write(&self.size_info.to_bytes()).unwrap();
         bytes
+            .write(&self.last_free_page.load(Ordering::Relaxed).to_le_bytes())
+            .unwrap();
+        bytes.write(&self.data).unwrap();
+        buf
     }
 }
 

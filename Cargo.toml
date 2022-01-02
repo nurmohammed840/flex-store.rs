@@ -1,7 +1,7 @@
 [workspace]
 
 members = [
-    "bytes",
+    "utils",
     "flex-page",
 
     # "flex-trie",

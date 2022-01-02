@@ -1,19 +1,19 @@
-#![allow(incomplete_features)]
-#![feature(generic_const_exprs)]
-
-pub mod endian;
-pub use endian::*;
-
-use crate::Endian;
+use crate::endian::Endian;
 use std::io::{Cursor, Read, Result, Write};
 
 pub trait Reader {
     fn next(&mut self) -> Option<u8>;
     fn buf<const S: usize>(&mut self) -> Result<[u8; S]>;
-    fn get<T>(&mut self) -> Result<T>
+    fn get<E>(&mut self) -> Result<E>
     where
-        T: Endian,
-        [u8; T::NBYTES]:;
+        E: Endian,
+        [u8; E::NBYTES]:;
+}
+pub trait Writer: Reader {
+    fn set<E>(&mut self, value: E) -> Result<()>
+    where
+        E: Endian,
+        [u8; E::NBYTES]:;
 }
 
 impl<T: AsRef<[u8]>> Reader for Cursor<T> {
@@ -37,20 +37,8 @@ impl<T: AsRef<[u8]>> Reader for Cursor<T> {
         [u8; R::NBYTES]:,
     {
         let bytes = self.buf()?;
-        #[cfg(not(any(feature = "native", feature = "big")))]
-        return Ok(R::from_bytes_le(bytes));
-        #[cfg(feature = "big")]
-        return Ok(R::from_bytes_be(bytes));
-        #[cfg(feature = "native")]
-        return Ok(R::from_bytes_ne(bytes));
+        Ok(R::from_bytes_le(bytes))
     }
-}
-
-pub trait Writer: Reader {
-    fn set<R>(&mut self, value: R) -> Result<()>
-    where
-        R: Endian,
-        [u8; R::NBYTES]:;
 }
 
 impl Writer for Cursor<&mut [u8]> {
@@ -59,12 +47,7 @@ impl Writer for Cursor<&mut [u8]> {
         R: Endian,
         [u8; R::NBYTES]:,
     {
-        #[cfg(not(any(feature = "native", feature = "big")))]
-        return self.write_all(&R::to_bytes_le(value));
-        #[cfg(feature = "big")]
-        return self.write_all(&R::to_bytes_be(value));
-        #[cfg(feature = "native")]
-        return self.write_all(&R::to_bytes_ne(value));
+        self.write_all(&R::to_bytes_le(value))
     }
 }
 

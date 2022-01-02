@@ -14,8 +14,9 @@ where
 impl<K, const NBYTES: usize> Page<'_, K, NBYTES>
 where
     K: PageNo,
-    [u8; NBYTES - 8]:,
     [u8; K::SIZE]:,
+    [u8; NBYTES - 8]:,
+    [(); ((NBYTES - ((2 * K::SIZE) + 4)) / K::SIZE)]:,
 {
     pub fn read(&self) -> impl Future<Output = Result<[u8; NBYTES]>> {
         Pages::<K, NBYTES>::read_async(self.file, self.num)
