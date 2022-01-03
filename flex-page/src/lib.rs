@@ -111,9 +111,22 @@ where
         }
     }
 
-    pub fn create(&self) -> impl Future<Output = Page<'_, K, NBYTES>> {
-        let num = K::new(self.len.fetch_add(1, Ordering::SeqCst));
-        self.goto(num)
+    pub async fn create(&self) -> Page<'_, K, NBYTES> {
+        let mut num = K::new(0);
+
+        // let num = loop {
+        //     let mut list = self.free.lock().unwrap();
+        //     if let Some(page) = list.pop() {
+        //         break num;
+        //     }
+        //     list.prev;
+        //     // num = self.len.fetch_add(1, Ordering::SeqCst) as K;
+        //     break K::new(0);
+        // };
+
+        // num = K::new(self.len.fetch_add(1, Ordering::SeqCst));
+
+        self.goto(num).await
     }
 }
 
@@ -125,7 +138,7 @@ where
     [(); ((NBYTES - ((2 * K::SIZE) + 4)) / K::SIZE)]:,
 {
     fn drop(&mut self) {
-        let _ = self.write_metadata();
+        let _ = self.file.write_all_at(&self.meta.to_bytes(), 0);
     }
 }
 

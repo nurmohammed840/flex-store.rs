@@ -2,6 +2,25 @@ use crate::page_no::PageNo;
 use std::io::{Cursor, Write};
 use utils::cursor::Reader;
 
+struct Free<K, const NBYTES: usize>
+where
+    K: PageNo,
+    [(); ((NBYTES - ((2 * K::SIZE) + 4)) / K::SIZE)]:,
+{
+    last: u32,
+    list: FreeList<K, NBYTES>,
+
+}
+
+
+
+
+
+
+
+
+
+
 pub struct FreeList<K, const NBYTES: usize>
 where
     K: PageNo,
