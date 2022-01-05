@@ -9,8 +9,9 @@ mod meta;
 mod page;
 mod page_no;
 
+use core::num;
 use file::FileExt;
-use free::FreeList;
+use free::{Free, List};
 use locker::Lockers;
 use meta::Meta;
 use page::Page;
@@ -19,25 +20,24 @@ use std::{
     fs::File,
     future::Future,
     io::{ErrorKind, Result},
-    sync::{
-        atomic::{AtomicU32, Ordering},
-        Mutex,
-    },
+    path::Path,
+    sync::atomic::{AtomicU32, Ordering},
 };
+use tokio::task::spawn_blocking;
 
 pub struct Pages<K, const NBYTES: usize>
 where
     K: PageNo,
     [(); K::SIZE]:,
     [(); NBYTES - 8]:,
-    [(); ((NBYTES - ((2 * K::SIZE) + 4)) / K::SIZE)]:,
+    [(); ((NBYTES - 8) / K::SIZE)]:,
 {
     /// Total Page number
     len: AtomicU32,
     file: &'static File,
     lockers: Lockers<K>,
     meta: Meta<K, NBYTES>,
-    free: Mutex<FreeList<K, NBYTES>>,
+    free: Free<K, NBYTES>,
 }
 
 impl<K, const NBYTES: usize> Pages<K, NBYTES>
@@ -45,9 +45,9 @@ where
     K: PageNo,
     [(); K::SIZE]:,
     [(); NBYTES - 8]:,
-    [(); ((NBYTES - ((2 * K::SIZE) + 4)) / K::SIZE)]:,
+    [(); ((NBYTES - 8) / K::SIZE)]:,
 {
-    pub fn open(path: &str) -> Result<Self> {
+    pub fn open(path: impl AsRef<Path>) -> Result<Self> {
         let mut meta = Meta::<K, NBYTES>::new();
         let file = File::options()
             .read(true)
@@ -62,72 +62,79 @@ where
         }
         // New File? Write metadata.
         if file_len == 0 {
-            file.write_all_at(&meta.to_bytes(), 0)?;
+            Self::write_sync(&file, 0, &meta.to_buf())?;
         }
         // Exist File? Read metadata.
         else {
-            let mut bytes = [0; NBYTES];
-            file.read_exact_at(&mut bytes, 0)?;
-            meta.extend_from(bytes)?;
+            meta.update_from(Self::read_sync(&file, 0)?)?;
         }
-        let buf = Self::read_sync(&file, meta.last_free_page().into())?;
+
+        let file: &'static File = Box::leak(Box::new(file));
+        let free = Free::new(meta.free_list_tail, &file)?;
         Ok(Self {
             meta,
-            free: Mutex::new(FreeList::from(buf)),
-            file: Box::leak(Box::new(file)),
+            free,
+            file,
             lockers: Lockers::new(),
             len: AtomicU32::new(file_len as u32 / NBYTES as u32),
         })
     }
 
-    pub fn write_metadata(&self) -> Result<()> {
-        self.file.write_all_at(&self.meta.to_bytes(), 0)?;
-        Ok(())
-    }
-
-    fn read_sync(file: &File, num: u64) -> Result<[u8; NBYTES]> {
+    fn read_sync(file: &File, num: u32) -> Result<[u8; NBYTES]> {
         let mut buf = [0; NBYTES];
-        file.read_exact_at(&mut buf, NBYTES as u64 * num)?;
+        file.read_exact_at(&mut buf, NBYTES as u64 * num as u64)?;
         Ok(buf)
     }
 
-    async fn read_async(file: &'static File, num: K) -> Result<[u8; NBYTES]> {
-        let num = num.as_u32() as u64;
-        tokio::task::spawn_blocking(move || Self::read_sync(file, num))
+    fn write_sync(file: &File, num: u32, buf: &[u8; NBYTES]) -> Result<usize> {
+        file.write_all_at(buf, NBYTES as u64 * num as u64)
+    }
+
+    async fn read_async(file: &'static File, num: u32) -> Result<[u8; NBYTES]> {
+        spawn_blocking(move || Self::read_sync(file, num))
+            .await
+            .unwrap()
+    }
+
+    async fn write_async(file: &'static File, num: u32, buf: [u8; NBYTES]) -> Result<usize> {
+        spawn_blocking(move || Self::write_sync(file, num, &buf))
             .await
             .unwrap()
     }
 
     pub async fn read(&self, num: K) -> Result<[u8; NBYTES]> {
         self.lockers.unlock(num).await;
-        Self::read_async(self.file, num).await
+        Self::read_async(self.file, num.as_u32()).await
     }
 
-    pub async fn goto(&self, num: K) -> Page<'_, K, NBYTES> {
-        Page {
+    pub async fn goto(&self, num: K) -> Result<Page<'_, K, NBYTES>> {
+        let lock_future = self.lockers.lock(num);
+        let num = num.as_u32();
+        let result = tokio::join!(Pages::<K, NBYTES>::read_async(self.file, num), lock_future);
+        Ok(Page {
             num,
             file: self.file,
-            _lock: self.lockers.lock(num).await,
-        }
+            buf: result.0?,
+            _lock: result.1,
+        })
     }
 
-    pub async fn create(&self) -> Page<'_, K, NBYTES> {
-        let mut num = K::new(0);
-
-        // let num = loop {
-        //     let mut list = self.free.lock().unwrap();
-        //     if let Some(page) = list.pop() {
-        //         break num;
-        //     }
-        //     list.prev;
-        //     // num = self.len.fetch_add(1, Ordering::SeqCst) as K;
-        //     break K::new(0);
-        // };
-
-        // num = K::new(self.len.fetch_add(1, Ordering::SeqCst));
-
-        self.goto(num).await
-    }
+    // pub async fn create(&self) -> Result<Page<'_, K, NBYTES>> {
+    //     let num = loop {
+    //         let mut freelist = self.free.lock().unwrap();
+    //         if let Some(num) = freelist.pop() {
+    //             break num;
+    //         }
+    //         let prev = freelist.prev;
+    //         if prev.as_u32() == 0 {
+    //             break K::new(self.len.fetch_add(1, Ordering::SeqCst));
+    //         }
+    //         let free_list_tail = self.meta.free_list_tail();
+    //         Self::write_async(self.file, K::new(free_list_tail), freelist.to_byte()).await?;
+    //         freelist.update_from(Self::read_async(self.file, prev).await?);
+    //     };
+    //     Ok(self.goto(num).await)
+    // }
 }
 
 impl<K, const NBYTES: usize> Drop for Pages<K, NBYTES>
@@ -135,10 +142,11 @@ where
     K: PageNo,
     [(); K::SIZE]:,
     [(); NBYTES - 8]:,
-    [(); ((NBYTES - ((2 * K::SIZE) + 4)) / K::SIZE)]:,
+    [(); ((NBYTES - 8) / K::SIZE)]:,
 {
     fn drop(&mut self) {
-        let _ = self.file.write_all_at(&self.meta.to_bytes(), 0);
+        self.meta.free_list_tail = self.free.curr_page_no;
+        Self::write_sync(self.file, 0, &self.meta.to_buf()).unwrap();
     }
 }
 
@@ -149,6 +157,5 @@ mod tests {
     #[test]
     fn basic() {
         let _pages: Pages<u16, 4096> = Pages::open("test.db").unwrap();
-        _pages.write_metadata();
     }
 }

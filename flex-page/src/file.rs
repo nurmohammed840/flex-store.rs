@@ -3,6 +3,9 @@ use std::{fs::File, io::Result, os};
 #[cfg(target_family = "unix")]
 pub use os::unix::fs::FileExt;
 
+#[cfg(target_family = "wasm")]
+pub use os::wasi::fs::FileExt;
+
 #[cfg(target_family = "windows")]
 pub trait FileExt {
     fn read_exact_at(&self, buf: &mut [u8], offset: u64) -> Result<usize>;

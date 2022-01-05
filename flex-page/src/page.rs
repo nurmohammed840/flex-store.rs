@@ -1,31 +1,19 @@
 use crate::{file::FileExt, locker::Lock, page_no::PageNo, Pages};
-use std::{fs::File, future::Future, io::Result};
+use std::{fs::File, future::Future, io::Result, ops::Deref};
 
-pub struct Page<'a, K, const NBYTES: usize>
-where
-    K: PageNo,
-    [u8; NBYTES - 8]:,
-{
-    pub num: K,
+pub struct Page<'a, K: PageNo, const NBYTES: usize> {
+    pub num: u32,
     pub file: &'static File,
+    pub buf: [u8; NBYTES],
     pub _lock: Lock<'a, K>,
 }
 
 impl<K, const NBYTES: usize> Page<'_, K, NBYTES>
 where
     K: PageNo,
-    [u8; K::SIZE]:,
-    [u8; NBYTES - 8]:,
-    [(); ((NBYTES - ((2 * K::SIZE) + 4)) / K::SIZE)]:,
+    [(); ((NBYTES - 8) / K::SIZE)]:,
 {
-    pub fn read(&self) -> impl Future<Output = Result<[u8; NBYTES]>> {
-        Pages::<K, NBYTES>::read_async(self.file, self.num)
-    }
-    pub async fn write(self, buf: [u8; NBYTES]) -> Result<usize> {
-        let file = self.file;
-        let num = self.num.as_u32() as u64;
-        tokio::task::spawn_blocking(move || file.write_all_at(&buf, NBYTES as u64 * num))
-            .await
-            .unwrap()
+    pub fn write(self) -> impl Future<Output = Result<usize>> {
+        Pages::<K, NBYTES>::write_async(self.file, self.num, self.buf)
     }
 }
