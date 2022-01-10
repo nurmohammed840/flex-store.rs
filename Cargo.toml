@@ -1,6 +1,7 @@
 [workspace]
 
 members = [
+    "page-lock",
     "flex-page",
 
     # "utils",
