@@ -37,20 +37,17 @@ Unlocking method: `unlock(Number)` does:
 ```
 function Unlock(Number):
     if there is any `Mutex` in `Map` by `Number`:
-        Wait for it, to get removed. 
-    
-    unlocked! 
+        wait for it, to get removed. 
 ```
 
 locking method is `lock(Number)`,
 
 ```
 function Lock(Number):
-    If there is any `Mutex` in `Map` by `Number`:
-        Wait for it, to get removed. 
+    Unlock(Number)
     
-    Add a `Mutex` to `Map` by `Number`,
+    add a `Mutex` to `Map` by `Number`
 
-    Return a `Lock` guard:
-        When `Lock` is dropped, remove the `Mutex` from `Map` by `Number`.
+    return a `LockGuard`:
+        when `LockGuard` is dropped, remove the `Mutex` from `Map` by `Number`.
 ```
