@@ -9,6 +9,7 @@ pub trait Reader {
         E: Endian,
         [u8; E::NBYTES]:;
 }
+
 pub trait Writer: Reader {
     fn set<E>(&mut self, value: E) -> Result<()>
     where
@@ -24,20 +25,21 @@ impl<T: AsRef<[u8]>> Reader for Cursor<T> {
         self.set_position(pos + 1);
         Some(byte)
     }
+
     #[inline]
     fn buf<const S: usize>(&mut self) -> Result<[u8; S]> {
         let mut buf = [0u8; S];
-        self.read_exact(&mut buf)?;
+        self.read(&mut buf)?;
         Ok(buf)
     }
+
     #[inline]
     fn get<R>(&mut self) -> Result<R>
     where
         R: Endian,
         [u8; R::NBYTES]:,
     {
-        let bytes = self.buf()?;
-        Ok(R::from_bytes_le(bytes))
+        Ok(R::from_bytes_le(self.buf()?))
     }
 }
 
@@ -47,7 +49,8 @@ impl Writer for Cursor<&mut [u8]> {
         R: Endian,
         [u8; R::NBYTES]:,
     {
-        self.write_all(&R::to_bytes_le(value))
+        self.write(&R::to_bytes_le(value))?;
+        Ok(())
     }
 }
 

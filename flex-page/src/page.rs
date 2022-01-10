@@ -1,3 +1,5 @@
+use tokio::task::spawn_blocking;
+
 use crate::{file::FileExt, locker::Lock, page_no::PageNo, Pages};
 use std::{fs::File, future::Future, io::Result, ops::Deref};
 
@@ -11,9 +13,11 @@ pub struct Page<'a, K: PageNo, const NBYTES: usize> {
 impl<K, const NBYTES: usize> Page<'_, K, NBYTES>
 where
     K: PageNo,
-    [(); ((NBYTES - 8) / K::SIZE)]:,
+    [(); (NBYTES - 8) / K::SIZE]:,
 {
-    pub fn write(self) -> impl Future<Output = Result<usize>> {
-        Pages::<K, NBYTES>::write_async(self.file, self.num, self.buf)
+    pub async fn write(self) -> Result<usize> {
+        spawn_blocking(move || Pages::<K, NBYTES>::write(self.file, self.num, self.buf))
+            .await
+            .unwrap()
     }
 }

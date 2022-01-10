@@ -26,6 +26,7 @@ macro_rules! impl_trait {
 impl_trait!(PageNo for u8:1 u16:2 u32:4);
 
 #[derive(Hash, PartialEq, Eq, Clone, Copy, Debug)]
+#[repr(transparent)]
 pub struct U24(u32);
 
 impl PageNo for U24 {

@@ -11,7 +11,7 @@ mod page_no;
 
 use core::num;
 use file::FileExt;
-use free::{Free, List};
+// use free::Free;
 use locker::Lockers;
 use meta::Meta;
 use page::Page;
@@ -30,14 +30,14 @@ where
     K: PageNo,
     [(); K::SIZE]:,
     [(); NBYTES - 8]:,
-    [(); ((NBYTES - 8) / K::SIZE)]:,
+    [(); (NBYTES - 8) / K::SIZE]:,
 {
     /// Total Page number
     len: AtomicU32,
     file: &'static File,
     lockers: Lockers<K>,
     meta: Meta<K, NBYTES>,
-    free: Free<K, NBYTES>,
+    // free: Free<K, NBYTES>,
 }
 
 impl<K, const NBYTES: usize> Pages<K, NBYTES>
@@ -45,7 +45,7 @@ where
     K: PageNo,
     [(); K::SIZE]:,
     [(); NBYTES - 8]:,
-    [(); ((NBYTES - 8) / K::SIZE)]:,
+    [(); (NBYTES - 8) / K::SIZE]:,
 {
     pub fn open(path: impl AsRef<Path>) -> Result<Self> {
         let mut meta = Meta::<K, NBYTES>::new();
@@ -62,7 +62,7 @@ where
         }
         // New File? Write metadata.
         if file_len == 0 {
-            Self::write_sync(&file, 0, &meta.to_buf())?;
+            Self::write(&file, 0, meta.to_buf())?;
         }
         // Exist File? Read metadata.
         else {
@@ -70,10 +70,10 @@ where
         }
 
         let file: &'static File = Box::leak(Box::new(file));
-        let free = Free::new(meta.free_list_tail, &file)?;
+        // let free = Free::new(meta.free_list_tail, &file)?;
         Ok(Self {
             meta,
-            free,
+            // free,
             file,
             lockers: Lockers::new(),
             len: AtomicU32::new(file_len as u32 / NBYTES as u32),
@@ -86,18 +86,12 @@ where
         Ok(buf)
     }
 
-    fn write_sync(file: &File, num: u32, buf: &[u8; NBYTES]) -> Result<usize> {
-        file.write_all_at(buf, NBYTES as u64 * num as u64)
+    fn write(file: &File, num: u32, buf: [u8; NBYTES]) -> Result<usize> {
+        file.write_all_at(&buf, NBYTES as u64 * num as u64)
     }
 
     async fn read_async(file: &'static File, num: u32) -> Result<[u8; NBYTES]> {
         spawn_blocking(move || Self::read_sync(file, num))
-            .await
-            .unwrap()
-    }
-
-    async fn write_async(file: &'static File, num: u32, buf: [u8; NBYTES]) -> Result<usize> {
-        spawn_blocking(move || Self::write_sync(file, num, &buf))
             .await
             .unwrap()
     }
@@ -110,7 +104,7 @@ where
     pub async fn goto(&self, num: K) -> Result<Page<'_, K, NBYTES>> {
         let lock_future = self.lockers.lock(num);
         let num = num.as_u32();
-        let result = tokio::join!(Pages::<K, NBYTES>::read_async(self.file, num), lock_future);
+        let result = tokio::join!(Self::read_async(self.file, num), lock_future);
         Ok(Page {
             num,
             file: self.file,
@@ -142,11 +136,11 @@ where
     K: PageNo,
     [(); K::SIZE]:,
     [(); NBYTES - 8]:,
-    [(); ((NBYTES - 8) / K::SIZE)]:,
+    [(); (NBYTES - 8) / K::SIZE]:,
 {
     fn drop(&mut self) {
-        self.meta.free_list_tail = self.free.curr_page_no;
-        Self::write_sync(self.file, 0, &self.meta.to_buf()).unwrap();
+        // self.meta.free_list_tail = self.free.curr;
+        Self::write(self.file, 0, self.meta.to_buf()).unwrap();
     }
 }
 
