@@ -34,7 +34,7 @@ pub trait DataView {
     fn read<E>(&self, offset: usize) -> E
     where
         E: Endian,
-        [u8; E::NBYTES]:;
+        [(); E::NBYTES]:;
 
     /// Writes a value of type `E` to the data view. where `E` is a type that implements `Endian`.
     /// 
@@ -76,7 +76,7 @@ impl DataView for [u8] {
     fn write<T>(&mut self, offset: usize, value: T)
     where
         T: Endian,
-        [u8; T::NBYTES]:,
+        [(); T::NBYTES]:,
     {
         #[cfg(not(any(feature = "BE", feature = "NE")))]
         self[offset..offset + T::NBYTES].copy_from_slice(&value.to_bytes_le());

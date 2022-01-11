@@ -11,7 +11,7 @@
 //! For example, if you want to use big endian,  
 //!
 //! ```toml
-//! data-view = { version = "0.1", features = ["BE"] }
+//! data-view = { version = "0.2", features = ["BE"] }
 //! ```
 //!
 //! # Examples

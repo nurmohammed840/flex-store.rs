@@ -1,9 +1,9 @@
 [package]
 name = "data-view"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2021"
 
-description = "A library for viewing data in a table format."
+description = "This library provides a data view for reading and writing data in a byte array."
 authors = ["Nur <nurmohammed840@gmail.com>"]
 repository = "https://github.com/nurmohammed840/flex"
 license = "GPL-3.0"

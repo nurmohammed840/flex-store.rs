@@ -9,7 +9,7 @@ But you can override the endian by using `BE` (for big endian) or `NE` (for nati
  
 For example, if you want to use big endian,
 ```toml
-data-view = { version = "0.1", features = ["BE"] }
+data-view = { version = "0.2", features = ["BE"] }
 ```
 
 It also works with `[no_std]` environment.

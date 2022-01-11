@@ -48,7 +48,7 @@ impl<T: AsRef<[u8]>> View<T> {
     pub fn get<E>(&mut self) -> E
     where
         E: Endian,
-        [u8; E::NBYTES]:,
+        [(); E::NBYTES]:,
     {
         let value = self.data.as_ref().read(self.offset);
         self.offset += E::NBYTES;
@@ -90,7 +90,7 @@ impl<T: AsMut<[u8]>> View<T> {
     pub fn set<E>(&mut self, value: E)
     where
         E: Endian,
-        [u8; E::NBYTES]:,
+        [(); E::NBYTES]:,
     {
         self.data.as_mut().write(self.offset, value);
         self.offset += E::NBYTES;
