@@ -2,6 +2,8 @@
 
 members = [
     "page-lock",
+    "data-view",
+
     "flex-page",
 
     # "utils",

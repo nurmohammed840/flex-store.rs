@@ -26,17 +26,12 @@ where
     [(); (NBYTES - 8) / K::SIZE]:,
 {
     pub fn new(file: &'static File, curr: u32) -> Result<Self> {
-        let mut this = Self {
-            file,
-            curr,
-            prev: 0,
-            list: Array::new(),
-        };
-        this.update_from(Pages::<K, NBYTES>::read_sync(file, curr)?);
+        let mut this = Self { file, curr, prev: 0, list: Array::new() };
+        this.read()?;
         Ok(this)
     }
 
-    pub fn to_buf(&self) -> [u8; NBYTES] {
+    pub fn write(&self) -> Result<()> {
         let mut buf = [0; NBYTES];
         let mut view = Cursor::new(&mut buf[..]);
 
@@ -46,11 +41,11 @@ where
         for num in self.list.iter() {
             view.write(&num.to_bytes()).unwrap();
         }
-        buf
+        Pages::<K, NBYTES>::write(self.file, self.curr, buf)
     }
 
-    pub fn update_from(&mut self, buf: [u8; NBYTES]) {
-        let mut view = Cursor::new(buf);
+    pub fn read(&mut self) -> Result<()> {
+        let mut view = Cursor::new(Pages::<K, NBYTES>::_read(self.file, self.curr)?);
 
         self.prev = view.get::<u32>().unwrap();
         let len = view.get::<u32>().unwrap() as usize;
@@ -59,6 +54,7 @@ where
         for i in 0..len {
             self.list.push(K::from_bytes(view.buf().unwrap()));
         }
+        Ok(())
     }
 
     pub async fn push(&mut self, num: K) -> Result<()> {
@@ -87,13 +83,12 @@ where
     }
 }
 
-// impl<K, const NBYTES: usize> Drop for Free<K, NBYTES>
-// where
-//     K: PageNo,
-//     [(); (NBYTES - 8) / K::SIZE]:,
-// {
-//     fn drop(&mut self) {
-//         let list = self.list.lock().unwrap();
-//         Pages::<K, NBYTES>::write_sync(self.file, self.curr, &list.to_buf()).unwrap();
-//     }
-// }
+impl<K, const NBYTES: usize> Drop for Free<K, NBYTES>
+where
+    K: PageNo,
+    [(); (NBYTES - 8) / K::SIZE]:,
+{
+    fn drop(&mut self) {
+        self.write();
+    }
+}

@@ -10,9 +10,9 @@ use std::{
 type Locker<T> = RwLock<HashMap<T, Vec<Waker>>>;
 
 pub struct UnLock<'a, T> {
-    num: T,
-    state: bool,
-    lockers: &'a Locker<T>,
+    num:    T,
+    state:  bool,
+    locker: &'a Locker<T>,
 }
 
 impl<'a, T: Unpin + Eq + Hash> Future for UnLock<'a, T> {
@@ -24,19 +24,13 @@ impl<'a, T: Unpin + Eq + Hash> Future for UnLock<'a, T> {
         }
         let this = self.get_mut();
         this.state = true;
-        this.lockers
-            .write()
-            .unwrap()
-            .get_mut(&this.num)
-            .unwrap()
-            .push(cx.waker().clone());
-
+        this.locker.write().unwrap().get_mut(&this.num).unwrap().push(cx.waker().clone());
         Poll::Pending
     }
 }
 
 pub struct LockGuard<'a, T: Eq + Hash> {
-    num: T,
+    num:    T,
     locker: &'a Locker<T>,
 }
 
@@ -54,26 +48,17 @@ pub struct PageLocker<T> {
 }
 
 impl<T: Eq + Hash + Copy + Unpin> PageLocker<T> {
-    pub fn new() -> Self {
-        Self {
-            locker: RwLock::new(HashMap::new()),
-        }
-    }
+    pub fn new() -> Self { Self { locker: RwLock::new(HashMap::new()) } }
 
+    #[inline(always)]
     pub fn unlock(&self, num: T) -> UnLock<T> {
-        UnLock {
-            state: self.locker.read().unwrap().get(&num).is_none(),
-            lockers: &self.locker,
-            num,
-        }
+        UnLock { state: self.locker.read().unwrap().get(&num).is_none(), locker: &self.locker, num }
     }
 
+    #[inline(always)]
     pub async fn lock(&self, num: T) -> LockGuard<'_, T> {
         self.unlock(num).await;
         self.locker.write().unwrap().insert(num, Vec::new());
-        LockGuard {
-            num,
-            locker: &self.locker,
-        }
+        LockGuard { num, locker: &self.locker }
     }
 }

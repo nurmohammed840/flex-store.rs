@@ -8,6 +8,7 @@ edition = "2021"
 [dependencies]
 tokio = { version = "*", default-features = false, features = ["rt"] }
 stack-array = { git = "https://github.com/nurmohammed840/stack-collections" }
+page-lock = { path = "../page-lock" }
 utils = { path = "../utils" }
 
 [dev-dependencies]
