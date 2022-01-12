@@ -1,15 +1,13 @@
 [package]
 name = "flex-page"
 version = "0.1.0"
-edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+edition = "2018"
 
 [dependencies]
 tokio = { version = "*", default-features = false, features = ["rt"] }
+page-lock = { git = "https://github.com/nurmohammed840/page-lock.rs" }
+data-view = { git = "https://github.com/nurmohammed840/data-view.rs" }
 stack-array = { git = "https://github.com/nurmohammed840/stack-collections" }
-page-lock = { path = "../page-lock" }
-utils = { path = "../utils" }
 
 [dev-dependencies]
 tokio = { version = "1.14.0", features = ["macros", "time"] }

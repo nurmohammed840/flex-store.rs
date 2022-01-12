@@ -1,12 +1,12 @@
 use crate::{page_no::PageNo, Pages};
+use data_view::DataView;
 use stack_array::Array;
 use std::{
     fs::File,
-    io::{Cursor, Result, Write},
+    io::{Result, Write},
     ops::{Deref, DerefMut},
     sync::Mutex,
 };
-use utils::cursor::{Reader, Writer};
 
 struct Free<K, const NBYTES: usize>
 where
@@ -88,7 +88,5 @@ where
     K: PageNo,
     [(); (NBYTES - 8) / K::SIZE]:,
 {
-    fn drop(&mut self) {
-        self.write();
-    }
+    fn drop(&mut self) { self.write(); }
 }

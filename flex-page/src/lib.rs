@@ -1,4 +1,3 @@
-#![allow(warnings)]
 #![feature(cursor_remaining)]
 #![feature(generic_const_exprs)]
 
