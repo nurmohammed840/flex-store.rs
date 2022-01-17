@@ -1,13 +1,15 @@
+use crate::page_no::PageNo;
+use crate::Pages;
+use std::fs::File;
+use std::io::Result;
+
+use page_lock::LockGuard;
 use tokio::task::spawn_blocking;
 
-use crate::{file::FileExt, page_no::PageNo, Pages};
-use page_lock::LockGuard;
-use std::{fs::File, future::Future, io::Result, ops::Deref};
-
 pub struct Page<'a, K: PageNo, const NBYTES: usize> {
-    pub file:  &'static File,
     pub num:   u32,
     pub buf:   [u8; NBYTES],
+    pub file:  &'static File,
     pub _lock: LockGuard<'a, K>,
 }
 
@@ -17,8 +19,7 @@ where
     [(); (NBYTES - 8) / K::SIZE]:,
 {
     pub async fn write(self) -> Result<()> {
-        spawn_blocking(move || Pages::<K, NBYTES>::write(self.file, self.num, self.buf))
-            .await
-            .unwrap()
+        let Self { file, num, buf, .. } = self;
+        spawn_blocking(move || Pages::<K, NBYTES>::_write(file, num, buf)).await.unwrap()
     }
 }

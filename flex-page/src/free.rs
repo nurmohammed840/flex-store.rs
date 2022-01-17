@@ -1,14 +1,12 @@
-use crate::{page_no::PageNo, Pages};
+use crate::page_no::PageNo;
+use crate::Pages;
+use std::fs::File;
+use std::io::Result;
+
 use data_view::DataView;
 use stack_array::Array;
-use std::{
-    fs::File,
-    io::{Result, Write},
-    ops::{Deref, DerefMut},
-    sync::Mutex,
-};
 
-struct Free<K, const NBYTES: usize>
+pub struct Free<K, const NBYTES: usize>
 where
     K: PageNo,
     [(); (NBYTES - 8) / K::SIZE]:,
@@ -32,27 +30,26 @@ where
     }
 
     pub fn write(&self) -> Result<()> {
-        let mut buf = [0; NBYTES];
-        let mut view = Cursor::new(&mut buf[..]);
+        let mut view = DataView::new([0; NBYTES]);
 
-        view.set(self.prev).unwrap();
-        view.set(self.list.len() as u32).unwrap();
+        view.write(self.prev);
+        view.write(self.list.len() as u32);
 
         for num in self.list.iter() {
-            view.write(&num.to_bytes()).unwrap();
+            view.write_slice(num.to_bytes());
         }
-        Pages::<K, NBYTES>::write(self.file, self.curr, buf)
+        Pages::<K, NBYTES>::_write(self.file, self.curr, view.data)
     }
 
     pub fn read(&mut self) -> Result<()> {
-        let mut view = Cursor::new(Pages::<K, NBYTES>::_read(self.file, self.curr)?);
+        let mut view = DataView::new(Pages::<K, NBYTES>::_read(self.file, self.curr)?);
 
-        self.prev = view.get::<u32>().unwrap();
-        let len = view.get::<u32>().unwrap() as usize;
+        self.prev = view.read::<u32>();
+        let len = view.read::<u32>() as usize;
 
         self.list.clear();
-        for i in 0..len {
-            self.list.push(K::from_bytes(view.buf().unwrap()));
+        for _ in 0..len {
+            self.list.push(K::from_bytes(view.read_buf()));
         }
         Ok(())
     }
@@ -88,5 +85,7 @@ where
     K: PageNo,
     [(); (NBYTES - 8) / K::SIZE]:,
 {
-    fn drop(&mut self) { self.write(); }
+    fn drop(&mut self) {
+        self.write().unwrap();
+    }
 }
