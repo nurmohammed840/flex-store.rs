@@ -24,8 +24,6 @@ use tokio::task::spawn_blocking;
 pub struct Pages<K, const NBYTES: usize>
 where
     K: PageNo,
-    [(); K::SIZE]:,
-    [(); (NBYTES - 8) / K::SIZE]:,
 {
     /// Total Page number
     len:    AtomicU32,
@@ -35,12 +33,7 @@ where
     // free:   Free<K, NBYTES>,
 }
 
-impl<K, const NBYTES: usize> Pages<K, NBYTES>
-where
-    K: PageNo,
-    [(); K::SIZE]:,
-    [(); (NBYTES - 8) / K::SIZE]:,
-{
+impl<K: PageNo, const NBYTES: usize> Pages<K, NBYTES> {
     /// Create a new `Pages` instance.
     pub fn open(path: impl AsRef<Path>) -> Result<Self> {
         let mut meta = Meta::<K, NBYTES>::new()?;
@@ -104,15 +97,9 @@ where
     }
 }
 
-impl<K, const NBYTES: usize> Drop for Pages<K, NBYTES>
-where
-    K: PageNo,
-    [(); K::SIZE]:,
-    [(); (NBYTES - 8) / K::SIZE]:,
-{
+impl<K: PageNo, const NBYTES: usize> Drop for Pages<K, NBYTES> {
     fn drop(&mut self) {
         // self.meta.free_tail = self.free.curr;
         Self::_write(self.file, 0, self.meta.to_bytes()).unwrap();
-        // unsafe { drop(Box::from_raw(self.file as *const _ as *mut File)) }
     }
 }

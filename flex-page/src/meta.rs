@@ -10,19 +10,14 @@ pub struct Meta<K: PageNo, const NBYTES: usize> {
     /// Last page num (pointer) of FreeList
     free_tail: u32,
     _marker:   PhantomData<K>,
-    data:      &'static mut [u8],
 }
 
-impl<K, const NBYTES: usize> Meta<K, NBYTES>
-where
-    K: PageNo,
-{
+impl<K: PageNo, const NBYTES: usize> Meta<K, NBYTES> {
     pub(crate) fn new() -> Result<Self> {
         error!(NBYTES < 64, "Page size should >= 64 bytes");
-        error!(NBYTES > 1024 * 512, "Page size should > 512 kilobytes");
+        error!(NBYTES > 1024 * 64, "Page size should > 64 kilobytes");
         let size_info = SizeInfo { block_size: NBYTES as u32, pages_len_nbytes: K::SIZE as u8 };
-        let data = Vec::with_capacity(NBYTES - 8).leak();
-        Ok(Self { size_info, free_tail: 1, _marker: PhantomData, data })
+        Ok(Self { size_info, free_tail: 1, _marker: PhantomData })
     }
 
     pub(crate) fn to_bytes(&self) -> [u8; NBYTES] {

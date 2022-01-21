@@ -9,19 +9,19 @@ use stack_array::Array;
 pub struct Free<K, const NBYTES: usize>
 where
     K: PageNo,
-    [(); (NBYTES - 8) / K::SIZE]:,
+    [(); (NBYTES - 6) / K::SIZE]:,
 {
     file: &'static File,
     curr: u32,
 
     prev: u32,
-    list: Array<K, { (NBYTES - 8) / K::SIZE }>,
+    list: Array<K, { (NBYTES - 6) / K::SIZE }>,
 }
 
 impl<K, const NBYTES: usize> Free<K, NBYTES>
 where
     K: PageNo,
-    [(); (NBYTES - 8) / K::SIZE]:,
+    [(); (NBYTES - 6) / K::SIZE]:,
 {
     pub fn new(file: &'static File, curr: u32) -> Result<Self> {
         let mut this = Self { file, curr, prev: 0, list: Array::new() };
@@ -33,7 +33,7 @@ where
         let mut view = DataView::new([0; NBYTES]);
 
         view.write(self.prev);
-        view.write(self.list.len() as u32);
+        view.write(self.list.len() as u16);
 
         for num in self.list.iter() {
             view.write_slice(num.to_bytes());
@@ -45,7 +45,7 @@ where
         let mut view = DataView::new(Pages::<K, NBYTES>::_read(self.file, self.curr)?);
 
         self.prev = view.read::<u32>();
-        let len = view.read::<u32>() as usize;
+        let len = view.read::<u16>() as usize;
 
         self.list.clear();
         for _ in 0..len {
@@ -83,7 +83,7 @@ where
 impl<K, const NBYTES: usize> Drop for Free<K, NBYTES>
 where
     K: PageNo,
-    [(); (NBYTES - 8) / K::SIZE]:,
+    [(); (NBYTES - 6) / K::SIZE]:,
 {
     fn drop(&mut self) {
         self.write().unwrap();

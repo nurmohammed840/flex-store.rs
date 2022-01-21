@@ -13,13 +13,11 @@ pub struct Page<'a, K: PageNo, const NBYTES: usize> {
     pub _lock: LockGuard<'a, K>,
 }
 
-impl<K, const NBYTES: usize> Page<'_, K, NBYTES>
-where
-    K: PageNo,
-    [(); (NBYTES - 8) / K::SIZE]:,
-{
+impl<K: PageNo, const NBYTES: usize> Page<'_, K, NBYTES> {
     pub async fn write(self) -> Result<()> {
         let Self { file, num, buf, .. } = self;
-        spawn_blocking(move || Pages::<K, NBYTES>::_write(file, num, buf)).await.unwrap()
+        spawn_blocking(move || Pages::<K, NBYTES>::_write(file, num, buf))
+            .await
+            .unwrap()
     }
 }
