@@ -1,36 +1,29 @@
-#![allow(warnings)]
 #![allow(incomplete_features)]
 #![feature(generic_const_exprs)]
 
 mod file;
-mod free;
 mod meta;
 mod page;
 mod page_no;
 
 use file::FileExt;
-// use free::Free;
 use meta::Meta;
 use page::Page;
 use page_no::PageNo;
 use std::fs::File;
 use std::io::{ErrorKind, Result};
 use std::path::Path;
-use std::sync::atomic::AtomicU32;
+use std::sync::atomic::{AtomicU32, Ordering};
 
 use page_lock::PageLocker;
 use tokio::task::spawn_blocking;
 
-pub struct Pages<K, const NBYTES: usize>
-where
-    K: PageNo,
-{
+pub struct Pages<K: PageNo, const NBYTES: usize> {
     /// Total Page number
     len:    AtomicU32,
     file:   &'static File,
     locker: PageLocker<K>,
     meta:   Meta<K, NBYTES>,
-    // free:   Free<K, NBYTES>,
 }
 
 impl<K: PageNo, const NBYTES: usize> Pages<K, NBYTES> {
@@ -43,13 +36,18 @@ impl<K: PageNo, const NBYTES: usize> Pages<K, NBYTES> {
         if file_len % NBYTES as u64 != 0 {
             return Err(ErrorKind::InvalidData.into());
         }
-        // Exist File? Read metadata.
-        if file_len != 0 {
-            meta.extend_from(Self::_read(&file, 0)?);
+
+        let mut len = file_len as u32 / NBYTES as u32;
+        // Is new file? set the length to 1.
+        if file_len == 0 {
+            len = 1;
         }
-        let len = AtomicU32::new(file_len as u32 / NBYTES as u32);
+        // Exist File? Read metadata.
+        else {
+            meta.extend_from(Self::_read(&file, 0)?)?;
+        }
+        let len = AtomicU32::new(len);
         let file: &'static File = Box::leak(Box::new(file));
-        // let free = Free::new(meta.free_list_tail, &file)?;
         Ok(Self { meta, file, locker: PageLocker::new(), len })
     }
 
@@ -65,13 +63,25 @@ impl<K: PageNo, const NBYTES: usize> Pages<K, NBYTES> {
     }
 
     pub async fn read(&self, num: K) -> Result<[u8; NBYTES]> {
+        debug_assert!((1..self.len()).contains(&num.as_u32()));
+
         self.locker.unlock(num).await;
         let num = num.as_u32();
         let file = self.file;
         spawn_blocking(move || Self::_read(file, num)).await.unwrap()
     }
 
+    pub async fn write(&self, num: K, buf: [u8; NBYTES]) -> Result<()> {
+        debug_assert!((1..self.len()).contains(&num.as_u32()));
+      
+        let num = num.as_u32();
+        let file = self.file;
+        spawn_blocking(move || Self::_write(file, num, buf)).await.unwrap()
+    }
+
     pub async fn goto(&self, num: K) -> Result<Page<'_, K, NBYTES>> {
+        debug_assert!((1..self.len()).contains(&num.as_u32()));
+
         let _lock = self.locker.lock(num).await;
         let num = num.as_u32();
         let file = self.file;
@@ -79,27 +89,68 @@ impl<K: PageNo, const NBYTES: usize> Pages<K, NBYTES> {
         Ok(Page { _lock, file, num, buf })
     }
 
-    pub async fn create(&self) {
-        //     let num = loop {
-        //         let mut freelist = self.free.lock().unwrap();
-        //         if let Some(num) = freelist.pop() {
-        //             break num;
-        //         }
-        //         let prev = freelist.prev;
-        //         if prev.as_u32() == 0 {
-        //             break K::new(self.len.fetch_add(1, Ordering::SeqCst));
-        //         }
-        //         let free_list_tail = self.meta.free_list_tail();
-        //         Self::write_async(self.file, K::new(free_list_tail), freelist.to_byte()).await?;
-        //         freelist.update_from(Self::read_async(self.file, prev).await?);
-        //     };
-        //     Ok(self.goto(num).await)
+    pub async fn create(&self, buf: [u8; NBYTES]) -> Result<()> {
+        let num = self.len.fetch_add(1, Ordering::Relaxed);
+        self.write(PageNo::new(num), buf).await
+    }
+
+    pub fn len(&self) -> u32 {
+        self.len.load(Ordering::Relaxed)
     }
 }
 
 impl<K: PageNo, const NBYTES: usize> Drop for Pages<K, NBYTES> {
     fn drop(&mut self) {
-        // self.meta.free_tail = self.free.curr;
         Self::_write(self.file, 0, self.meta.to_bytes()).unwrap();
+    }
+}
+
+#[test]
+fn test_name() {
+    let a = 1..2;
+    println!("{}", a.contains(&0));
+    println!("{}", a.contains(&2));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use std::fs::remove_file;
+
+    async fn init() -> Result<()> {
+        let pages = Pages::<u16, 64>::open("test.db")?;
+
+        assert_eq!(pages.len(), 1);
+        pages.create([0; 64]).await?;
+        assert_eq!(pages.len(), 2);
+
+        let mut page = pages.goto(1).await?;
+        page.buf = [1; 64];
+        page.write().await
+    }
+
+    async fn create_page() -> Result<()> {
+        let pages = Pages::<u16, 64>::open("test.db")?;
+        assert_eq!(pages.len(), 2);
+        assert_eq!(pages.read(1).await?, [1; 64]);
+
+        pages.create([2; 64]).await?;
+        assert_eq!(pages.len(), 3);
+        
+        Ok(())
+    }
+
+    #[test]
+    fn all() {
+        tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("Failed building the Runtime")
+            .block_on(async {
+                init().await.expect("Failed to Initialize");
+                create_page().await.expect("Failed creating page");
+                remove_file("test.db").unwrap()
+            });
     }
 }

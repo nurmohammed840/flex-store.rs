@@ -1,42 +1,37 @@
 use crate::page_no::PageNo;
-use data_view::DataView;
 use std::io::{Error, ErrorKind, Result};
 use std::marker::PhantomData;
+
+use data_view::DataView;
 
 macro_rules! error { [$cond: expr, $msg: expr] => { if $cond { return Err(Error::new(ErrorKind::InvalidInput, $msg)); } }; }
 
 pub struct Meta<K: PageNo, const NBYTES: usize> {
     size_info: SizeInfo,
-    /// Last page num (pointer) of FreeList
-    free_tail: u32,
     _marker:   PhantomData<K>,
 }
 
 impl<K: PageNo, const NBYTES: usize> Meta<K, NBYTES> {
-    pub(crate) fn new() -> Result<Self> {
+    pub fn new() -> Result<Self> {
         error!(NBYTES < 64, "Page size should >= 64 bytes");
-        error!(NBYTES > 1024 * 64, "Page size should > 64 kilobytes");
+        error!(NBYTES > 1024 * 256, "Page size should > 256 kilobytes");
         let size_info = SizeInfo { block_size: NBYTES as u32, pages_len_nbytes: K::SIZE as u8 };
-        Ok(Self { size_info, free_tail: 1, _marker: PhantomData })
+        Ok(Self { size_info, _marker: PhantomData })
     }
 
-    pub(crate) fn to_bytes(&self) -> [u8; NBYTES] {
+    pub fn to_bytes(&self) -> [u8; NBYTES] {
         let mut view = DataView::new([0; NBYTES]);
         view.write_slice(self.size_info.to_bytes());
-        view.write::<u32>(self.free_tail);
-        // view.write_slice(self.data);
         view.data
     }
 
-    pub(crate) fn extend_from(&mut self, bytes: [u8; NBYTES]) -> Result<()> {
+    pub fn extend_from(&mut self, bytes: [u8; NBYTES]) -> Result<()> {
         let mut view = DataView::new(&bytes[..]);
         let size_info = SizeInfo::from(view.read_buf::<4>());
         error!(
             size_info != self.size_info,
             format!("Expected {:?}, but got: {:?}", self.size_info, size_info)
         );
-        self.free_tail = view.read::<u32>();
-        // self.data.copy_from_slice(view.remaining_slice());
         Ok(())
     }
 }
@@ -71,14 +66,10 @@ mod tests {
 
     #[test]
     fn metadata_binary_convertion() {
-        let mut m1 = Meta::<u32, 2048>::new().unwrap();
+        let m1 = Meta::<u32, 2048>::new().unwrap();
         let mut m2 = Meta::<u32, 2048>::new().unwrap();
-
-        m1.free_tail = 42;
         m2.extend_from(m1.to_bytes()).unwrap();
-
         assert_eq!(m1.size_info, m2.size_info);
-        assert_eq!(m1.free_tail, m2.free_tail);
     }
 
     #[test]
