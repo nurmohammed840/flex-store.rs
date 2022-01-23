@@ -2,14 +2,14 @@
 #![feature(generic_const_exprs)]
 
 mod file;
-mod meta;
 mod page;
 mod page_no;
+mod size_info;
 
 use file::FileExt;
-use meta::Meta;
 use page::Page;
 use page_no::PageNo;
+use size_info::SizeInfo;
 use std::fs::File;
 use std::io::{ErrorKind, Result};
 use std::path::Path;
@@ -20,46 +20,38 @@ use tokio::task::spawn_blocking;
 
 pub struct Pages<K: PageNo, const NBYTES: usize> {
     /// Total Page number
-    len:    AtomicU32,
-    file:   &'static File,
+    len: AtomicU32,
+    file: &'static File,
     locker: PageLocker<K>,
-    meta:   Meta<K, NBYTES>,
+    size_info: SizeInfo,
 }
 
 impl<K: PageNo, const NBYTES: usize> Pages<K, NBYTES> {
     /// Create a new `Pages` instance.
     pub fn open(path: impl AsRef<Path>) -> Result<Self> {
-        let mut meta = Meta::<K, NBYTES>::new()?;
+        let  size_info = SizeInfo::new(NBYTES as u32, K::SIZE as u8)?;
+
         let file = File::options().read(true).write(true).create(true).open(path)?;
         let file_len = file.metadata()?.len();
         // So that, There is no residue bytes.
         if file_len % NBYTES as u64 != 0 {
             return Err(ErrorKind::InvalidData.into());
         }
-
         let mut len = file_len as u32 / NBYTES as u32;
+
         // Is new file? set the length to 1.
         if file_len == 0 {
             len = 1;
         }
-        // Exist File? Read metadata.
+        // Exist File?  Check 
         else {
-            meta.extend_from(Self::_read(&file, 0)?)?;
+            let mut buf = [0; 4];
+            file.read_exact_at(&mut buf, 0)?;
+            size_info.check_from(buf)?;
         }
         let len = AtomicU32::new(len);
         let file: &'static File = Box::leak(Box::new(file));
-        Ok(Self { meta, file, locker: PageLocker::new(), len })
-    }
-
-    fn _read(file: &File, num: u32) -> Result<[u8; NBYTES]> {
-        let mut buf = [0; NBYTES];
-        file.read_exact_at(&mut buf, NBYTES as u64 * num as u64)?;
-        Ok(buf)
-    }
-
-    fn _write(file: &File, num: u32, buf: [u8; NBYTES]) -> Result<()> {
-        file.write_all_at(&buf, NBYTES as u64 * num as u64)?;
-        Ok(())
+        Ok(Self { size_info, file, locker: PageLocker::new(), len })
     }
 
     pub async fn read(&self, num: K) -> Result<[u8; NBYTES]> {
@@ -68,25 +60,33 @@ impl<K: PageNo, const NBYTES: usize> Pages<K, NBYTES> {
         self.locker.unlock(num).await;
         let num = num.as_u32();
         let file = self.file;
-        spawn_blocking(move || Self::_read(file, num)).await.unwrap()
+
+        spawn_blocking(move || {
+            let mut buf = [0; NBYTES];
+            file.read_exact_at(&mut buf, NBYTES as u64 * num as u64)?;
+            Ok(buf)
+        })
+        .await
+        .unwrap()
     }
 
     pub async fn write(&self, num: K, buf: [u8; NBYTES]) -> Result<()> {
         debug_assert!((1..self.len()).contains(&num.as_u32()));
-      
+
         let num = num.as_u32();
         let file = self.file;
-        spawn_blocking(move || Self::_write(file, num, buf)).await.unwrap()
+        spawn_blocking(move || {
+            file.write_all_at(&buf, NBYTES as u64 * num as u64)?;
+            Ok(())
+        })
+        .await
+        .unwrap()
     }
 
     pub async fn goto(&self, num: K) -> Result<Page<'_, K, NBYTES>> {
-        debug_assert!((1..self.len()).contains(&num.as_u32()));
-
+        let buf = self.read(num).await?;
         let _lock = self.locker.lock(num).await;
-        let num = num.as_u32();
-        let file = self.file;
-        let buf = spawn_blocking(move || Self::_read(file, num)).await.unwrap()?;
-        Ok(Page { _lock, file, num, buf })
+        Ok(Page { _lock, num, buf, pages: self })
     }
 
     pub async fn create(&self, buf: [u8; NBYTES]) -> Result<()> {
@@ -101,22 +101,13 @@ impl<K: PageNo, const NBYTES: usize> Pages<K, NBYTES> {
 
 impl<K: PageNo, const NBYTES: usize> Drop for Pages<K, NBYTES> {
     fn drop(&mut self) {
-        Self::_write(self.file, 0, self.meta.to_bytes()).unwrap();
+        self.file.write_all_at(&self.size_info.to_bytes(), 0).unwrap();
     }
-}
-
-#[test]
-fn test_name() {
-    let a = 1..2;
-    println!("{}", a.contains(&0));
-    println!("{}", a.contains(&2));
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    use std::fs::remove_file;
 
     async fn init() -> Result<()> {
         let pages = Pages::<u16, 64>::open("test.db")?;
@@ -137,7 +128,7 @@ mod tests {
 
         pages.create([2; 64]).await?;
         assert_eq!(pages.len(), 3);
-        
+
         Ok(())
     }
 
@@ -150,7 +141,7 @@ mod tests {
             .block_on(async {
                 init().await.expect("Failed to Initialize");
                 create_page().await.expect("Failed creating page");
-                remove_file("test.db").unwrap()
+                std::fs::remove_file("test.db").unwrap()
             });
     }
 }
