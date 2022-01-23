@@ -13,7 +13,7 @@ pub struct Page<'a, K: PageNo, const NBYTES: usize> {
 }
 
 impl<K: PageNo, const NBYTES: usize> Page<'_, K, NBYTES> {
-    pub async fn write(self) -> Result<()> {
+    pub async fn write(self) -> Result<usize> {
         self.pages.write(self.num, self.buf).await
     }
 }

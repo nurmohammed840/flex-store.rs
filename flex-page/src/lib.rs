@@ -11,12 +11,14 @@ use page::Page;
 use page_no::PageNo;
 use size_info::SizeInfo;
 use std::fs::File;
-use std::io::{ErrorKind, Result};
+use std::io::{Error, ErrorKind, Result};
 use std::path::Path;
 use std::sync::atomic::{AtomicU32, Ordering};
 
 use page_lock::PageLocker;
 use tokio::task::spawn_blocking;
+
+macro_rules! err { [$cond: expr, $msg: expr] => { if $cond { return Err(Error::new(ErrorKind::InvalidInput, $msg)); } }; }
 
 pub struct Pages<K: PageNo, const NBYTES: usize> {
     /// Total Page number
@@ -29,7 +31,9 @@ pub struct Pages<K: PageNo, const NBYTES: usize> {
 impl<K: PageNo, const NBYTES: usize> Pages<K, NBYTES> {
     /// Create a new `Pages` instance.
     pub fn open(path: impl AsRef<Path>) -> Result<Self> {
-        let  size_info = SizeInfo::new(NBYTES as u32, K::SIZE as u8)?;
+        err!(NBYTES < 64, "Page size should >= 64 bytes");
+        err!(NBYTES > 1024 * 256, "Page size should > 256 kilobytes");
+        let size_info = SizeInfo { block_size: NBYTES as u32, pages_len_nbytes: K::SIZE as u8 };
 
         let file = File::options().read(true).write(true).create(true).open(path)?;
         let file_len = file.metadata()?.len();
@@ -38,16 +42,19 @@ impl<K: PageNo, const NBYTES: usize> Pages<K, NBYTES> {
             return Err(ErrorKind::InvalidData.into());
         }
         let mut len = file_len as u32 / NBYTES as u32;
-
         // Is new file? set the length to 1.
         if file_len == 0 {
             len = 1;
         }
-        // Exist File?  Check 
+        // Exist File?  Check size info.
         else {
             let mut buf = [0; 4];
             file.read_exact_at(&mut buf, 0)?;
-            size_info.check_from(buf)?;
+            let info = SizeInfo::from(buf);
+            err!(
+                info != size_info,
+                format!("Expected {:?}, but got: {:?}", info, size_info)
+            );
         }
         let len = AtomicU32::new(len);
         let file: &'static File = Box::leak(Box::new(file));
@@ -60,7 +67,6 @@ impl<K: PageNo, const NBYTES: usize> Pages<K, NBYTES> {
         self.locker.unlock(num).await;
         let num = num.as_u32();
         let file = self.file;
-
         spawn_blocking(move || {
             let mut buf = [0; NBYTES];
             file.read_exact_at(&mut buf, NBYTES as u64 * num as u64)?;
@@ -70,26 +76,24 @@ impl<K: PageNo, const NBYTES: usize> Pages<K, NBYTES> {
         .unwrap()
     }
 
-    pub async fn write(&self, num: K, buf: [u8; NBYTES]) -> Result<()> {
+    pub async fn goto(&self, num: K) -> Result<Page<'_, K, NBYTES>> {
+        let buf = self.read(num).await?;
+        // SEAAFTY: At this point, the page is unlocked. So, it is safe to use `lock_unchecked`.
+        let _lock = unsafe { self.locker.lock_unchecked(num) };
+        Ok(Page { _lock, num, buf, pages: self })
+    }
+
+    pub async fn write(&self, num: K, buf: [u8; NBYTES]) -> Result<usize> {
         debug_assert!((1..self.len()).contains(&num.as_u32()));
 
         let num = num.as_u32();
         let file = self.file;
-        spawn_blocking(move || {
-            file.write_all_at(&buf, NBYTES as u64 * num as u64)?;
-            Ok(())
-        })
-        .await
-        .unwrap()
+        spawn_blocking(move || file.write_all_at(&buf, NBYTES as u64 * num as u64))
+            .await
+            .unwrap()
     }
 
-    pub async fn goto(&self, num: K) -> Result<Page<'_, K, NBYTES>> {
-        let buf = self.read(num).await?;
-        let _lock = self.locker.lock(num).await;
-        Ok(Page { _lock, num, buf, pages: self })
-    }
-
-    pub async fn create(&self, buf: [u8; NBYTES]) -> Result<()> {
+    pub async fn create(&self, buf: [u8; NBYTES]) -> Result<usize> {
         let num = self.len.fetch_add(1, Ordering::Relaxed);
         self.write(PageNo::new(num), buf).await
     }
@@ -109,7 +113,7 @@ impl<K: PageNo, const NBYTES: usize> Drop for Pages<K, NBYTES> {
 mod tests {
     use super::*;
 
-    async fn init() -> Result<()> {
+    async fn init() -> Result<usize> {
         let pages = Pages::<u16, 64>::open("test.db")?;
 
         assert_eq!(pages.len(), 1);
@@ -120,18 +124,19 @@ mod tests {
         page.buf = [1; 64];
         page.write().await
     }
-
     async fn create_page() -> Result<()> {
         let pages = Pages::<u16, 64>::open("test.db")?;
         assert_eq!(pages.len(), 2);
         assert_eq!(pages.read(1).await?, [1; 64]);
+        pages.create([0; 64]).await?;
 
-        pages.create([2; 64]).await?;
         assert_eq!(pages.len(), 3);
 
+        pages.write(2, [2; 64]).await?;
+        assert_eq!(pages.len(), 3);
+        assert_eq!(pages.read(2).await?, [2; 64]);
         Ok(())
     }
-
     #[test]
     fn all() {
         tokio::runtime::Builder::new_current_thread()
