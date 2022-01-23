@@ -1,5 +1,6 @@
 #![allow(incomplete_features)]
 #![feature(generic_const_exprs)]
+#![allow(clippy::len_without_is_empty)]
 
 mod file;
 mod page;
@@ -34,7 +35,6 @@ impl<K: PageNo, const NBYTES: usize> Pages<K, NBYTES> {
         err!(NBYTES < 64, "Page size should >= 64 bytes");
         err!(NBYTES > 1024 * 256, "Page size should > 256 kilobytes");
         let size_info = SizeInfo { block_size: NBYTES as u32, pages_len_nbytes: K::SIZE as u8 };
-
         let file = File::options().read(true).write(true).create(true).open(path)?;
         let file_len = file.metadata()?.len();
         // So that, There is no residue bytes.
@@ -51,10 +51,7 @@ impl<K: PageNo, const NBYTES: usize> Pages<K, NBYTES> {
             let mut buf = [0; 4];
             file.read_exact_at(&mut buf, 0)?;
             let info = SizeInfo::from(buf);
-            err!(
-                info != size_info,
-                format!("Expected {:?}, but got: {:?}", info, size_info)
-            );
+            err!(info != size_info, format!("Expected {:?}, but got: {:?}", info, size_info));
         }
         let len = AtomicU32::new(len);
         let file: &'static File = Box::leak(Box::new(file));
@@ -65,11 +62,11 @@ impl<K: PageNo, const NBYTES: usize> Pages<K, NBYTES> {
         debug_assert!((1..self.len()).contains(&num.as_u32()));
 
         self.locker.unlock(num).await;
-        let num = num.as_u32();
+        let num = num.as_u32() as u64;
         let file = self.file;
         spawn_blocking(move || {
             let mut buf = [0; NBYTES];
-            file.read_exact_at(&mut buf, NBYTES as u64 * num as u64)?;
+            file.read_exact_at(&mut buf, NBYTES as u64 * num)?;
             Ok(buf)
         })
         .await
@@ -78,19 +75,16 @@ impl<K: PageNo, const NBYTES: usize> Pages<K, NBYTES> {
 
     pub async fn goto(&self, num: K) -> Result<Page<'_, K, NBYTES>> {
         let buf = self.read(num).await?;
-        // SEAAFTY: At this point, the page is unlocked. So, it is safe to use `lock_unchecked`.
-        let _lock = unsafe { self.locker.lock_unchecked(num) };
+        let _lock = self.locker.lock(num);
         Ok(Page { _lock, num, buf, pages: self })
     }
 
     pub async fn write(&self, num: K, buf: [u8; NBYTES]) -> Result<usize> {
         debug_assert!((1..self.len()).contains(&num.as_u32()));
 
-        let num = num.as_u32();
+        let num = num.as_u32() as u64;
         let file = self.file;
-        spawn_blocking(move || file.write_all_at(&buf, NBYTES as u64 * num as u64))
-            .await
-            .unwrap()
+        spawn_blocking(move || file.write_all_at(&buf, NBYTES as u64 * num)).await.unwrap()
     }
 
     pub async fn create(&self, buf: [u8; NBYTES]) -> Result<usize> {
@@ -137,6 +131,7 @@ mod tests {
         assert_eq!(pages.read(2).await?, [2; 64]);
         Ok(())
     }
+
     #[test]
     fn all() {
         tokio::runtime::Builder::new_current_thread()

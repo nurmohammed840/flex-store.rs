@@ -6,10 +6,10 @@ use std::ops::{Deref, DerefMut};
 use page_lock::LockGuard;
 
 pub struct Page<'a, K: PageNo, const NBYTES: usize> {
-    pub buf:   [u8; NBYTES],
-    pub(crate) num:   K,
+    pub buf: [u8; NBYTES],
+    pub(crate) num: K,
     pub(crate) _lock: LockGuard<'a, K>,
-    pub (crate) pages:  &'a Pages<K, NBYTES>,
+    pub(crate) pages: &'a Pages<K, NBYTES>,
 }
 
 impl<K: PageNo, const NBYTES: usize> Page<'_, K, NBYTES> {

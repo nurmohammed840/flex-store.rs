@@ -15,9 +15,6 @@ impl SizeInfo {
 
     pub fn from(buf: [u8; 4]) -> Self {
         let [a, b, c, d] = buf;
-        Self {
-            pages_len_nbytes: a,
-            block_size: u32::from_le_bytes([b, c, d, 0]),
-        }
+        Self { pages_len_nbytes: a, block_size: u32::from_le_bytes([b, c, d, 0]) }
     }
 }

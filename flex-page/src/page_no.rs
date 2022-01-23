@@ -1,7 +1,7 @@
 use std::convert::TryInto;
 use std::hash::Hash;
 
-pub trait PageNo: Eq + Hash + Copy + Unpin  {
+pub trait PageNo: Eq + Hash + Copy + Unpin {
     /// Total number of bytes.
     const SIZE: usize;
     fn new(_: u32) -> Self;
