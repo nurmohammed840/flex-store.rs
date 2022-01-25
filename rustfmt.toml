@@ -6,7 +6,7 @@ struct_field_align_threshold = 5
 
 # !Stable
 
-reorder_impl_items = true
+fn_single_line = true
 imports_granularity = "Module"
 condense_wildcard_suffixes = true
 format_code_in_doc_comments = true

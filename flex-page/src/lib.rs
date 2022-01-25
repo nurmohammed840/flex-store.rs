@@ -7,9 +7,10 @@ mod page;
 mod page_no;
 mod size_info;
 
+pub use page_no::*;
+
 use file::FileExt;
 use page::Page;
-use page_no::PageNo;
 use size_info::SizeInfo;
 use std::fs::File;
 use std::io::{Error, ErrorKind, Result};

@@ -2,10 +2,10 @@
 
 members = [
     "flex-page",
+    "flex-bplus-tree",
 
     # "utils",
     # "flex-trie",
-    # "flex-bplus-tree",
     # "flex-tools",
     # "flex-btree",
     # "flex-value",

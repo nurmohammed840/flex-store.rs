@@ -40,6 +40,7 @@ impl BPlusTree {
         Ok(())
     }
 
+    
     fn find_leaf(&mut self, page_no: u16, id: u64) -> Result<leaf::Leaf> {
         match Node::from_bytes(self.pages.read(page_no as u64)?) {
             Node::Branch(b) => self.find_leaf(b.childs[b.lookup(id)], id),
@@ -49,24 +50,6 @@ impl BPlusTree {
 
     pub fn get(&mut self, id: u64) -> Result<Option<[u8; 8]>> {
         Ok(self.find_leaf(self.root_page_no, id)?.find_value(id))
-    }
-
-    pub fn clear(&mut self) -> Result<()> {
-        self.pages.clear()?;
-        self.set_root(1)?;
-        Ok(())
-    }
-
-    pub fn size(&self) {
-        todo!()
-    }
-
-    pub fn delete(&mut self) {
-        todo!()
-    }
-
-    pub fn bulk_write(&mut self) {
-        todo!()
     }
 
     pub fn set(&mut self, id: u64, value: [u8; 8], opt: SetOption) -> Result<[u8; 8]> {
