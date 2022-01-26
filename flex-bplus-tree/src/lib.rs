@@ -1,92 +1,92 @@
 #![allow(incomplete_features)]
 #![feature(generic_const_exprs)]
 
-mod node;
-mod leaf;
-mod entry;
 mod branch;
+mod entry;
+mod leaf;
+mod node;
 
+use std::io::Result;
 use std::marker::PhantomData;
 
 use flex_page::{PageNo, Pages};
+use async_recursion::async_recursion;
+
+use entry::Key;
+use leaf::{Leaf, SetOption};
+use node::Node;
 
 pub struct BPlusTree<K, V, P: PageNo = u16, const PAGE_SIZE: usize = 4096> {
-    _root:  P,
-    _pages: Pages<P, PAGE_SIZE>,
-    _marker:   PhantomData<(K, V)>,
+    root:    P,
+    pages:   Pages<P, PAGE_SIZE>,
+    _marker: PhantomData<(K, V)>,
 }
 
-impl<K, V, P: PageNo, const PAGE_SIZE: usize> BPlusTree<K, V, P, PAGE_SIZE> {
+impl<K, V, P: 'static, const PAGE_SIZE: usize> BPlusTree<K, V, P, PAGE_SIZE>
+where
+    K: Key,
+    V: Key,
+    P: PageNo,
+    [(); (PAGE_SIZE - (1 + P::SIZE * 2 + 2)) / (K::SIZE + V::SIZE)]:,
+    [(); (PAGE_SIZE - (1 + 2)) / (K::SIZE + P::SIZE) - 1]:,
+    [(); (PAGE_SIZE - (1 + 2)) / (K::SIZE + P::SIZE)]:,
+{
     pub fn new(root: P, pages: Pages<P, PAGE_SIZE>) -> Self {
-        Self { _root: root, _pages: pages, _marker: PhantomData }
+        Self { root, pages, _marker: PhantomData }
     }
 
-    // pub fn get(&self, key: &K) -> Option<&V> { unimplemented!() }
-    // pub fn insert(&mut self, key: K, value: V) { unimplemented!() }
+    #[async_recursion]
+    async fn find_leaf(&mut self, num: P, key: K) -> Result<Leaf<K, V, P, PAGE_SIZE>> {
+        let buf = self.pages.read(num).await?;
+        let node = Node::<K, V, P, PAGE_SIZE>::from_bytes(buf);
+        match node {
+            Node::Branch(branch) => {
+                let index = branch.lookup(key);
+                self.find_leaf(branch.childs[index], key).await
+            }
+            Node::Leaf(leaf) => Ok(leaf),
+        }
+    }
+
+    pub async fn get(&mut self, key: K) -> Result<Option<V>> {
+        Ok(self.find_leaf(self.root, key).await?.find(key))
+    }
+
+    // Entry Api
+    // pub fn clear(&mut self) -> Result<()> { todo!() }
+    // pub fn first_key_value(&self) -> Option<(&K, &V)>
+    // pub fn last_key_value(&self) -> Option<(&K, &V)>
+    // pub fn pop_first(&mut self) -> Option<(K, V)>
+    // pub fn pop_last(&mut self) -> Option<(K, V)>
+    // pub fn contains_key<Q>(&self, key: &Q) -> bool
+    // pub fn append(&mut self, other: &mut Self)
+    // pub fn remove(&mut self, key: &K) -> Option<V> { unimplemented!() }
+    // pub fn insert(&mut self, key: K, value: V) -> Option<V> { unimplemented!() }
+
+    #[async_recursion]
+    async fn _set(&mut self, num: P, key: K, value: V, opt: SetOption) -> Result<Option<V>> {
+        let buf = self.pages.read(num).await?;
+        let node = Node::<K, V, P, PAGE_SIZE>::from_bytes(buf);
+        match node {
+            Node::Branch(branch) => {
+                let index = branch.lookup(key);
+                let result = self._set(branch.childs[index], key, value, opt).await?;
+                // let mut ret = None;
+                // self._set(num, key, value, opt).await
+                Ok(result)
+            }
+            Node::Leaf(mut leaf) => {
+                // let mut ret = None;
+                let result = leaf.insert(key, value, opt);
+                if leaf.entries.is_full() {
+                    let (other, mid) = leaf.split_at_mid();
+                    // let new_num = self.pages.alloc().await?;
+                    // let new_num = self.pages.alloc();
+                }
+                Ok(result)
+            }
+        }
+    }
 }
 
-
-
-
 // ====================================================================================================
-
-// mod branch;
-// mod entry;
-// mod leaf;
-// mod node;
-
-// use flex_page::{Pages, U24};
-// use std::marker::PhantomData;
-
-// pub use entry::Key;
-// pub use flex_page::PageNo;
-
-// struct BPlusTree<K, V, P, const KS: usize, const VS: usize, const PS: usize, const PAGE_SIZE: usize>
-// {
-//     pages: Pages<P, PS, PAGE_SIZE>,
-//     root_page_no: P,
-//     _key_marker: PhantomData<K>,
-//     _value_marker: PhantomData<V>,
-// }
-
-// impl<K, V, P, const KS: usize, const VS: usize, const PS: usize, const PAGE_SIZE: usize>
-//     BPlusTree<K, V, P, KS, VS, PS, PAGE_SIZE>
-// where
-//     K: Key<KS>,
-//     V: Key<VS>,
-//     P: PageNo<PS>,
-// {
-//     fn open(filepath: &str) -> Result<Self, std::io::Error> {
-//         let mut pages = Pages::<P, PS, PAGE_SIZE>::open(filepath)?;
-
-//         Ok(Self {
-//             pages,
-//             root_page_no: todo!(),
-//             _key_marker: PhantomData,
-//             _value_marker: PhantomData,
-//         })
-//     }
-// }
-
-// macro_rules! BPlusTree {
-//     ($key:ty, $value:ty) => {
-//         BPlusTree!($key, $value, 4096)
-//     };
-//     ($key:ty, $value:ty, $page_size:literal) => {
-//         BPlusTree!($key, $value, $crate::U24, $page_size)
-//     };
-//     ($key:ty, $value:ty, $page_len:ty) => {
-//         BPlusTree!($key, $value, $page_len, 4096)
-//     };
-//     ($key:ty, $value:ty, $page_len:ty, $page_size:literal) => {
-//         BPlusTree::<
-//             $key,
-//             $value,
-//             $page_len,
-//             { <$key>::SIZE },
-//             { <$value>::SIZE },
-//             { <$page_len>::SIZE },
-//             $page_size,
-//         >
-//     };
-// }

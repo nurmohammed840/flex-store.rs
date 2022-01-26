@@ -1,4 +1,4 @@
-pub trait Key: Copy {
+pub trait Key: Copy + PartialOrd +Send  {
     const SIZE: usize;
     fn to_bytes(self) -> [u8; Self::SIZE];
     fn from_bytes(bytes: [u8; Self::SIZE]) -> Self;

@@ -9,3 +9,4 @@ edition = "2021"
 flex-page = { path = "../flex-page" }
 data-view = "2"
 stack-array = "0.2"
+async-recursion = "1.0.0"

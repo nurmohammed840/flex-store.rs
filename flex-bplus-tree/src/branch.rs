@@ -12,7 +12,7 @@ where
     [(); (PAGE_SIZE - (1 + 2)) / (K::SIZE + P::SIZE)]:,
 {
     keys:   Array<K, { (PAGE_SIZE - (1 + 2)) / (K::SIZE + P::SIZE) - 1 }>,
-    childs: Array<P, { (PAGE_SIZE - (1 + 2)) / (K::SIZE + P::SIZE) }>,
+    pub childs: Array<P, { (PAGE_SIZE - (1 + 2)) / (K::SIZE + P::SIZE) }>,
 }
 
 impl<K, P, const PAGE_SIZE: usize> Branch<K, P, PAGE_SIZE>
@@ -28,7 +28,7 @@ where
         let mut buf = [0; PAGE_SIZE];
         let mut view = DataView::new(&mut buf[..]);
         // Node type
-        view.write::<u8>(0);
+        view.write::<u8>(1);
         // We don't need to write the `childs  length,
         // because it's always the same as the `keys` length + 1.
         view.write(self.keys.len() as u16);
@@ -49,10 +49,39 @@ where
         this
     }
 
-    // pub fn insert(&mut self, index: usize, key: K, child: P) {
-    //     self.keys.insert(index, key);
-    //     self.childs.insert(index + 1, child);
-    // }
+    /// # Panic
+    /// Panic if `childs` is empty,
+    /// Make sure that `childs` has at least one element.
+    pub fn insert(&mut self, index: usize, key: K, child: P) {
+        self.keys.insert(index, key);
+        self.childs.insert(index + 1, child);
+    }
+
+    pub fn lookup(&self, key: K) -> usize {
+        let mut i = 0;
+        let len = self.keys.len();
+        while i < len && self.keys[i] <= key {
+            i += 1;
+        }
+        i
+    }
+
+    pub fn create_root(key: K, left: P, right: P) -> Self {
+        let mut branch = Self::new();
+        branch.keys.push(key);
+        branch.childs.push(left);
+        branch.childs.push(right);
+        branch
+    }
+
+    /// This function splits `Self` at the middle, and returns the other half. with reminder key.
+    pub fn split_at_mid(&mut self) -> (Self, K) {
+        let mid = self.keys.len() / 2;
+        let mut other = Self::new();
+        other.keys.append(self.keys.drain(mid..).as_slice());
+        other.childs.append(self.childs.drain(mid..).as_slice());
+        (other, self.keys.pop())
+    }
 }
 
 #[cfg(test)]
@@ -74,107 +103,54 @@ mod tests {
         assert_eq!(branch.childs.capacity(), 584);
     }
 
-    // #[test]
-    // fn check_to_bytes() {
-    //     let mut branch = Branch::<u64, u16, 4096>::new();
-    //     branch.insert(0, 1, 2);
-    //     branch.insert(1, 3, 4);
-    //     branch.insert(2, 5, 6);
-    //     println!("{:#?}", branch.keys);
-    //     println!("{:#?}", branch.childs);
-    // }
+    #[test]
+    fn lookup() {
+        let mut branch = Branch::<u64, u16, 4096>::new();
+        branch.keys.append([10, 20]);
+
+        assert_eq!(branch.lookup(0), 0);
+        assert_eq!(branch.lookup(9), 0);
+
+        assert_eq!(branch.lookup(10), 1);
+        assert_eq!(branch.lookup(19), 1);
+
+        assert_eq!(branch.lookup(20), 2);
+        assert_eq!(branch.lookup(100), 2);
+    }
+
+    fn test_byte_conversion(branch: &Branch<u64, u16, 4096>) {
+        let bytes = branch.to_bytes();
+        let mut view = DataView::new(&bytes[..]);
+
+        assert_eq!(view.read::<u8>(), 1); // Node type
+
+        let branch2 = Branch::<u64, u16, 4096>::from(view);
+
+        assert_eq!(branch2.keys[..], branch.keys[..]);
+        assert_eq!(branch2.childs[..], branch.childs[..]);
+    }
+
+    #[test]
+    fn split_at_mid() {
+        let mut branch = Branch::<u64, u16, 4096>::create_root(0, 0, 1);
+
+        for i in 1..branch.keys.capacity() {
+            branch.insert(i, i as u64, i as u16 + 1);
+        }
+
+        test_byte_conversion(&branch);
+
+        assert!(branch.keys.is_full());
+        assert!(branch.childs.is_full());
+
+        let (other, remainder) = branch.split_at_mid();
+
+        assert_eq!(branch.keys[..], (0..=202).collect::<Vec<u64>>());
+        assert_eq!(branch.childs[..], (0..=203).collect::<Vec<u16>>());
+        
+        assert_eq!(remainder, 203);
+
+        assert_eq!(other.keys[..], (204..=407).collect::<Vec<u64>>());
+        assert_eq!(other.childs[..], (204..=408).collect::<Vec<u16>>());
+    }
 }
-
-// ===========================================================================================
-
-// impl<K, P, const KS: usize, const PS: usize, const PAGE_SIZE: usize> Branch<K, P, KS, PS, PAGE_SIZE>
-// where
-//     K: PartialOrd + Key<KS>,
-//     P: PageNo<PS>,
-// {
-//     pub fn create_root(key: K, left: P, right: P) -> Self {
-//         let mut branch = Branch::new();
-//         branch.keys.push(key);
-//         branch.childs.push(left);
-//         branch.childs.push(right);
-//         branch
-//     }
-
-//     /// -> index
-//     pub fn lookup(&self, key: K) -> usize {
-//         let mut i = 0;
-//         for &_key in &self.keys {
-//             if key < _key {
-//                 return i;
-//             }
-//             i += 1;
-//         }
-//         i
-//     }
-
-//     /// ### Panic: যদি `branch.childs`-এ কোনো উপাদান না থাকে, নিশ্চিত করুন যে `branch.childs`-এ অন্তত একটি উপাদান রয়েছে.
-//     pub fn update(&mut self, index: usize, (mid, page_no): (K, P)) {
-//         self.keys.insert(index, mid);
-//         self.childs.insert(index + 1, page_no);
-//     }
-
-//     pub fn split(&mut self) -> (Self, K) {
-//         let mid_point = Self::max_keys_capacity() / 2;
-//         let right = Self {
-//             keys: self.keys.drain(mid_point..).collect(),
-//             childs: self.childs.drain(mid_point..).collect(),
-//         };
-//         (right, self.keys.pop().unwrap())
-//     }
-// }
-
-// #[cfg(test)]
-// mod tests {
-//     type Branch = super::Branch<u64, u16, 8, 2, 4096>;
-
-//     #[test]
-//     fn lookup() {
-//         let mut branch: Branch = Branch::new();
-//         branch.keys = vec![10u64, 15, 20];
-
-//         assert_eq!(branch.lookup(10), 1);
-//         assert_eq!(branch.lookup(15), 2);
-//         assert_eq!(branch.lookup(20), 3);
-
-//         assert_eq!(branch.lookup(0), 0);
-//         assert_eq!(branch.lookup(9), 0);
-//         assert_eq!(branch.lookup(11), 1);
-//         assert_eq!(branch.lookup(14), 1);
-//         assert_eq!(branch.lookup(16), 2);
-//         assert_eq!(branch.lookup(19), 2);
-//         assert_eq!(branch.lookup(21), 3);
-//         assert_eq!(branch.lookup(100), 3);
-//     }
-
-//     #[test]
-//     fn split() {
-//         let mut left: Branch = Branch::create_root(0, 0, 1);
-
-//         for i in 1..Branch::max_keys_capacity() {
-//             left.update(i, (i as u64, i as u16 + 1));
-//         }
-
-//         assert!(left.is_full());
-
-//         // ------------------  to/from byte test ------------------
-//         let bytes = left.to_bytes();
-//         assert_eq!(bytes.len(), 4084);
-//         assert_eq!(Branch::from_bytes(&bytes).to_bytes(), bytes);
-//         // --------------------------------------------------------
-
-//         let (right, mid) = left.split();
-
-//         assert_eq!(mid, 203);
-
-//         assert_eq!(left.keys, (0..=202).collect::<Vec<u64>>());
-//         assert_eq!(right.keys, (204..=407).collect::<Vec<u64>>());
-
-//         assert_eq!(left.childs, (0..=203).collect::<Vec<u16>>());
-//         assert_eq!(right.childs, (204..=408).collect::<Vec<u16>>());
-//     }
-// }

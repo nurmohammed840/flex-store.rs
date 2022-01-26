@@ -59,19 +59,30 @@ impl<K: PageNo, const NBYTES: usize> Pages<K, NBYTES> {
         Ok(Self { size_info, file, locker: PageLocker::new(), len })
     }
 
+    pub async fn sync_data(&self) -> Result<()> {
+        let file = self.file;
+        unsafe { spawn_blocking(move || file.sync_data()).await.unwrap_unchecked() }
+    }
+
+    pub async fn sync_all(&self) -> Result<()> {
+        let file = self.file;
+        unsafe { spawn_blocking(move || file.sync_all()).await.unwrap_unchecked() }
+    }
+
     pub async fn read(&self, num: K) -> Result<[u8; NBYTES]> {
         debug_assert!((1..self.len()).contains(&num.as_u32()));
-
         self.locker.unlock(num).await;
         let num = num.as_u32() as u64;
         let file = self.file;
-        spawn_blocking(move || {
-            let mut buf = [0; NBYTES];
-            file.read_exact_at(&mut buf, NBYTES as u64 * num)?;
-            Ok(buf)
-        })
-        .await
-        .unwrap()
+        unsafe {
+            spawn_blocking(move || {
+                let mut buf = [0; NBYTES];
+                file.read_exact_at(&mut buf, NBYTES as u64 * num)?;
+                Ok(buf)
+            })
+            .await
+            .unwrap_unchecked()
+        }
     }
 
     pub async fn goto(&self, num: K) -> Result<Page<'_, K, NBYTES>> {
@@ -85,7 +96,11 @@ impl<K: PageNo, const NBYTES: usize> Pages<K, NBYTES> {
 
         let num = num.as_u32() as u64;
         let file = self.file;
-        spawn_blocking(move || file.write_all_at(&buf, NBYTES as u64 * num)).await.unwrap()
+        unsafe {
+            spawn_blocking(move || file.write_all_at(&buf, NBYTES as u64 * num))
+                .await
+                .unwrap_unchecked()
+        }
     }
 
     pub async fn create(&self, buf: [u8; NBYTES]) -> Result<usize> {
@@ -93,15 +108,13 @@ impl<K: PageNo, const NBYTES: usize> Pages<K, NBYTES> {
         self.write(PageNo::new(num), buf).await
     }
 
-    pub fn len(&self) -> u32 {
-        self.len.load(Ordering::Relaxed)
-    }
+    pub fn len(&self) -> u32 { self.len.load(Ordering::Relaxed) }
+
+    pub fn inner(&self) -> &'static File { self.file }
 }
 
 impl<K: PageNo, const NBYTES: usize> Drop for Pages<K, NBYTES> {
-    fn drop(&mut self) {
-        self.file.write_all_at(&self.size_info.to_bytes(), 0).unwrap();
-    }
+    fn drop(&mut self) { self.file.write_all_at(&self.size_info.to_bytes(), 0).unwrap(); }
 }
 
 #[cfg(test)]

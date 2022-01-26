@@ -1,7 +1,7 @@
 use std::convert::TryInto;
 use std::hash::Hash;
 
-pub trait PageNo: Eq + Hash + Copy + Unpin {
+pub trait PageNo: Eq + Hash + Copy + Unpin + Send + Sync {
     /// Total number of bytes.
     const SIZE: usize;
     fn new(_: u32) -> Self;
@@ -48,7 +48,5 @@ impl PageNo for U24 {
         Self(u32::from_le_bytes([a, b, c, 0]))
     }
 
-    fn as_u32(self) -> u32 {
-        self.0
-    }
+    fn as_u32(self) -> u32 { self.0 }
 }
