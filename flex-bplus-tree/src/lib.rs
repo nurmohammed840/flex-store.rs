@@ -9,8 +9,8 @@ mod node;
 use std::io::Result;
 use std::marker::PhantomData;
 
-use flex_page::{PageNo, Pages};
 use async_recursion::async_recursion;
+use flex_page::{PageNo, Pages};
 
 use entry::Key;
 use leaf::{Leaf, SetOption};
@@ -90,3 +90,71 @@ where
 }
 
 // ====================================================================================================
+mod t {
+    use super::*;
+
+    use data_view::DataView;
+    use std::collections::{HashMap, HashSet};
+    use std::fs::File;
+    use std::io::{Read, Write};
+    use std::path::Path;
+
+    struct Meta {
+        file:  File,
+        store: HashMap<u64, Vec<u8>>,
+        free:  HashSet<u32>,
+    }
+
+    impl Meta {
+        pub fn open(path: impl AsRef<Path>) -> Result<Self> {
+            let mut file = File::options().read(true).create(true).write(true).open(path)?;
+            let mut store = HashMap::new();
+            let mut free = HashSet::new();
+
+            let mut buf = Vec::new();
+            file.read_to_end(&mut buf)?;
+            let mut view = DataView::new(buf.as_slice());
+
+            let store_len = view.read::<u16>();
+            let free_len = view.read::<u32>();
+
+            for _ in 0..store_len {
+                let key = view.read::<u64>();
+                let len = view.read::<u16>();
+                let value = view.read_slice(len as usize).to_owned();
+                store.insert(key, value);
+            }
+            for _ in 0..free_len {
+                free.insert(view.read::<u32>());
+            }
+            Ok(Self { file, store, free })
+        }
+
+        pub fn set(&mut self, key: u64, value: impl AsRef<[u8]>) {
+            let data = value.as_ref();
+            assert!(data.len() < u16::MAX as usize, "value too large");
+            self.store.insert(key, data.to_vec());
+        }
+
+        pub fn get(&self, key: u64) -> Option<&Vec<u8>> { self.store.get(&key) }
+    }
+
+    impl Drop for Meta {
+        fn drop(&mut self) {
+            let mut bytes = Vec::new();
+
+            bytes.extend_from_slice(&(self.store.len() as u16).to_le_bytes());
+            bytes.extend_from_slice(&(self.free.len() as u32).to_le_bytes());
+
+            for (key, value) in self.store.iter() {
+                bytes.extend_from_slice(&key.to_le_bytes());
+                bytes.extend_from_slice(&(value.len() as u16).to_le_bytes());
+                bytes.extend_from_slice(&value);
+            }
+            for num in self.free.iter() {
+                bytes.extend_from_slice(&num.to_le_bytes());
+            }
+            self.file.write_all(bytes.as_slice()).unwrap();
+        }
+    }
+}
