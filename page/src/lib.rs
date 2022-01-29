@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Mutex, RwLock};
 
 use bytes::{Buf, BufMut};
-use flex_page::PageNo;
+pub use flex_page::*;
 
 pub struct Pages<K: PageNo, const NBYTES: usize> {
     pages: flex_page::Pages<K, NBYTES>,

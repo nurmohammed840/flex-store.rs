@@ -6,7 +6,6 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-flex-page = { path = "../flex-page" }
-data-view = "2"
-stack-array = "0.2"
+page = { path = "../page" }
 async-recursion = "1.0.0"
+bytes = "1"

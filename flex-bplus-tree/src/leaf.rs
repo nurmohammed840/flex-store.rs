@@ -1,8 +1,7 @@
 use std::mem::replace;
 
-use data_view::DataView;
-use flex_page::PageNo;
-use stack_array::Array;
+use page::PageNo;
+use bytes::{Buf, BufMut};
 
 use crate::entry::Key;
 use SetOption::*;
@@ -12,26 +11,23 @@ pub enum SetOption {
     FindOrInsert,
 }
 
-pub struct Leaf<K, V, P, const PAGE_SIZE: usize>
-where
-    K: Key,
-    V: Key,
-    P: PageNo,
-    [(); (PAGE_SIZE - (1 + P::SIZE * 2 + 2)) / (K::SIZE + V::SIZE)]:,
-{
-    next:    P,
-    prev:    P,
-    pub entries: Array<(K, V), { (PAGE_SIZE - (1 + P::SIZE * 2 + 2)) / (K::SIZE + V::SIZE) }>,
+pub struct Leaf<K, V, P, const PAGE_SIZE: usize> {
+    next: P,
+    prev: P,
+    entries: Vec<(K, V)>,
 }
 
-impl<K, V, P, const PAGE_SIZE: usize> Leaf<K, V, P, PAGE_SIZE>
-where
-    K: Key,
-    V: Key,
-    P: PageNo,
-    [(); (PAGE_SIZE - (1 + P::SIZE * 2 + 2)) / (K::SIZE + V::SIZE)]:,
-{
-    pub fn new() -> Self { Self { next: P::new(0), prev: P::new(0), entries: Array::new() } }
+impl<K: Key, V: Key, P: PageNo, const PAGE_SIZE: usize> Leaf<K, V, P, PAGE_SIZE> {
+    pub fn capacity() -> usize {
+        (PAGE_SIZE - (1 + P::SIZE * 2 + 2)) / (K::SIZE + V::SIZE)
+    }
+    pub fn new() -> Self {
+        Self { next: P::new(0), prev: P::new(0), entries: Vec::with_capacity(Self::capacity()) }
+    }
+
+    fn is_full(&self) -> bool {
+        self.entries.len() >= Self::capacity()        
+    }
 
     fn binary_search_by(&self, key: &K) -> Result<usize, usize> {
         self.entries.binary_search_by(|(k, _)| k.partial_cmp(key).expect("Key can't be `NaN`"))
@@ -59,37 +55,37 @@ where
     pub fn split_at_mid(&mut self) -> (Self, K) {
         let mut other = Self::new();
         let mid_point = self.entries.len() / 2;
-        other.entries.append(self.entries.drain(mid_point..).as_slice());
+        other.entries = self.entries.drain(mid_point..).collect();
         let mid = other.entries[0].0;
         (other, mid)
     }
 
     pub fn to_bytes(&self) -> [u8; PAGE_SIZE] {
         let mut buf = [0; PAGE_SIZE];
-        let mut view = DataView::new(&mut buf[..]);
+        let mut view = buf.as_mut();
 
-        view.write::<u8>(0); // Node Type
-        view.write_slice(self.next.to_bytes());
-        view.write_slice(self.prev.to_bytes());
-        view.write(self.entries.len() as u16);
+        view.put_u8(0); // Node Type
+        view.put(&self.next.to_bytes()[..]);
+        view.put(&self.prev.to_bytes()[..]);
+        view.put_u16_le(self.entries.len() as u16);
 
         for (key, value) in self.entries.iter() {
-            view.write_slice(key.to_bytes());
-            view.write_slice(value.to_bytes());
+            view.put(&key.to_bytes()[..]);
+            view.put(&value.to_bytes()[..]);
         }
         buf
     }
 
-    pub fn from(mut view: DataView<&[u8]>) -> Self {
+    pub fn from_bytes(mut bytes: &[u8]) -> Self {
         let mut this = Self::new();
 
-        this.next = P::from_bytes(view.read_buf());
-        this.prev = P::from_bytes(view.read_buf());
-        let len = view.read::<u16>();
+        this.next = P::from_bytes(&bytes.copy_to_bytes(P::SIZE));
+        this.prev = P::from_bytes(&bytes.copy_to_bytes(P::SIZE));
+        let len = bytes.get_u16_le();
 
         for _ in 0..len {
-            let key = K::from_bytes(view.read_buf());
-            let value = V::from_bytes(view.read_buf());
+            let key = K::from_bytes(&bytes.copy_to_bytes(K::SIZE));
+            let value = V::from_bytes(&bytes.copy_to_bytes(V::SIZE));
             this.entries.push((key, value));
         }
         this
@@ -103,11 +99,8 @@ mod tests {
 
     #[test]
     fn check_capacity() {
-        let leaf = super::Leaf::<u64, u16, u16, 4096>::new();
-        assert_eq!(leaf.entries.capacity(), 408);
-
-        let leaf = super::Leaf::<u32, u16, flex_page::U24, 4096>::new();
-        assert_eq!(leaf.entries.capacity(), 681);
+        assert_eq!(super::Leaf::<u64, u16, u16, 4096>::capacity(), 408);
+        assert_eq!(super::Leaf::<u32, u16, page::U24, 4096>::capacity(), 681);
     }
 
     #[test]
@@ -142,10 +135,10 @@ mod tests {
         leaf.entries.push((4, 4));
 
         let bytes = leaf.to_bytes();
-        let mut view = DataView::new(&bytes[..]);
-        assert_eq!(view.read::<u8>(), 0); // Node type
+        let mut view = &bytes[..];
+        assert_eq!(view.get_u8(), 0); // Node type
 
-        let leaf2 = Leaf::from(view);
+        let leaf2 = Leaf::from_bytes(view);
         assert_eq!(leaf2.next, 1);
         assert_eq!(leaf2.prev, 2);
         assert_eq!(leaf.entries[..], leaf2.entries[..]);
@@ -154,7 +147,7 @@ mod tests {
     #[test]
     fn split_at_mid() {
         let mut left = Leaf::new();
-        left.entries.append([(1, 1), (2, 2), (3, 3), (4, 4), (5, 5)]);
+        left.entries = [(1, 1), (2, 2), (3, 3), (4, 4), (5, 5)].to_vec();
 
         let (right, mid) = left.split_at_mid();
         assert_eq!(left.entries.len(), 2);
