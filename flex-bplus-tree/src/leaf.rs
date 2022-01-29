@@ -1,6 +1,6 @@
 use std::mem::replace;
 
-use page::PageNo;
+use flex_page::PageNo;
 use bytes::{Buf, BufMut};
 
 use crate::entry::Key;
@@ -25,7 +25,7 @@ impl<K: Key, V: Key, P: PageNo, const PAGE_SIZE: usize> Leaf<K, V, P, PAGE_SIZE>
         Self { next: P::new(0), prev: P::new(0), entries: Vec::with_capacity(Self::capacity()) }
     }
 
-    fn is_full(&self) -> bool {
+    pub fn is_full(&self) -> bool {
         self.entries.len() >= Self::capacity()        
     }
 
@@ -100,7 +100,7 @@ mod tests {
     #[test]
     fn check_capacity() {
         assert_eq!(super::Leaf::<u64, u16, u16, 4096>::capacity(), 408);
-        assert_eq!(super::Leaf::<u32, u16, page::U24, 4096>::capacity(), 681);
+        assert_eq!(super::Leaf::<u32, u16, flex_page::U24, 4096>::capacity(), 681);
     }
 
     #[test]

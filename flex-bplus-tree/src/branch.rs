@@ -1,11 +1,11 @@
 use bytes::{Buf, BufMut};
-use page::PageNo;
+use flex_page::PageNo;
 
 use crate::entry::Key;
 
 pub struct Branch<K, P, const PAGE_SIZE: usize> {
     keys: Vec<K>,
-    childs: Vec<P>,
+    pub childs: Vec<P>,
 }
 
 impl<K: Key, P: PageNo, const PAGE_SIZE: usize> Branch<K, P, PAGE_SIZE> {
@@ -96,7 +96,7 @@ mod tests {
     fn check_capacity() {
         assert_eq!(Branch::<u64, u16, 4096>::capacity(), 408);
         assert_eq!(Branch::<[u8; 16], u32, 4096>::capacity(), 203);
-        assert_eq!(Branch::<u32, page::U24, 4096>::capacity(), 583);
+        assert_eq!(Branch::<u32, flex_page::U24, 4096>::capacity(), 583);
     }
 
     #[test]

@@ -1,5 +1,5 @@
 use bytes::Buf;
-use page::PageNo;
+use flex_page::PageNo;
 
 use crate::branch::Branch;
 use crate::entry::Key;
