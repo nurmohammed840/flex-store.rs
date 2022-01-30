@@ -1,4 +1,6 @@
-pub trait Key: Copy + PartialOrd + Send {
+use std::fmt::Debug;
+
+pub trait Key: Copy + PartialOrd + Send + Sync + Unpin + Debug {
     const SIZE: usize;
     fn to_bytes(self) -> Vec<u8>;
     fn from_bytes(bytes: &[u8]) -> Self;
