@@ -1,6 +1,7 @@
 {
     "recommendations": [
         "matklad.rust-analyzer",
-        "vadimcn.vscode-lldb"
+        "vadimcn.vscode-lldb",
+        "usernamehw.errorlens"
     ],
 }

@@ -3,25 +3,26 @@ use flex_page::PageNo;
 
 use crate::entry::Key;
 
+
+#[derive(Debug)]
 pub struct Branch<K, N, const SIZE: usize> {
-	pub keys: Vec<K>,
-	pub childs: Vec<N>,
+	keys: Vec<K>,
+	childs: Vec<N>,
 }
 
 impl<K: Key, N: PageNo, const SIZE: usize> Branch<K, N, SIZE> {
-	/// Max key capacity
 	pub fn capacity() -> usize {
-		(SIZE - (1 + 2)) / (K::SIZE + N::SIZE) - 1
+		(SIZE - (1 + 2)) / (K::SIZE + N::SIZE)
 	}
 
 	pub fn is_full(&self) -> bool {
-		self.keys.len() >= Self::capacity()
+		self.childs.len() >= Self::capacity()
 	}
 
 	pub fn new() -> Self {
 		Self {
-			keys: Vec::with_capacity(Self::capacity()),
-			childs: Vec::with_capacity(Self::capacity() + 1),
+			keys: Vec::with_capacity(Self::capacity() - 1),
+			childs: Vec::with_capacity(Self::capacity()),
 		}
 	}
 
@@ -57,15 +58,14 @@ impl<K: Key, N: PageNo, const SIZE: usize> Branch<K, N, SIZE> {
 	/// # Panic
 	/// Panic if `childs` is empty,
 	/// Make sure that `childs` has at least one element.
-	pub fn insert(&mut self, index: usize, e: (K, N)) {
-		self.keys.insert(index, e.0);
-		self.childs.insert(index + 1, e.1);
+	pub fn insert(&mut self, index: usize, (k, n): (K, N)) {
+		self.keys.insert(index, k);
+		self.childs.insert(index + 1, n);
 	}
 
 	pub fn lookup(&self, key: K) -> usize {
 		let mut i = 0;
-		let len = self.keys.len();
-		while i < len && self.keys[i] <= key {
+		while i < self.keys.len() && self.keys[i] <= key {
 			i += 1;
 		}
 		i
@@ -81,10 +81,20 @@ impl<K: Key, N: PageNo, const SIZE: usize> Branch<K, N, SIZE> {
 
 	/// This function splits `Self` at the middle, and returns the other half. with reminder key.
 	pub fn split_at_mid(&mut self) -> (Self, K) {
-		let mid = self.keys.len() / 2;
+		let mid = self.childs.len() / 2;
 		let keys = self.keys.drain(mid..).collect::<Vec<_>>();
 		let childs = self.childs.drain(mid..).collect::<Vec<_>>();
 		(Self { keys, childs }, self.keys.pop().unwrap())
+	}
+
+	#[cfg(test)]
+	/// Get a reference to the branch's keys.
+	pub fn keys(&self) -> &[K] {
+		self.keys.as_ref()
+	}
+	/// Get a reference to the branch's childs.
+	pub fn childs(&self) -> &[N] {
+		self.childs.as_ref()
 	}
 }
 
@@ -94,9 +104,9 @@ mod tests {
 
 	#[test]
 	fn check_capacity() {
-		assert_eq!(Branch::<u64, u16, 4096>::capacity(), 408);
-		assert_eq!(Branch::<[u8; 16], u32, 4096>::capacity(), 203);
-		assert_eq!(Branch::<u32, flex_page::U24, 4096>::capacity(), 583);
+		assert_eq!(Branch::<u64, u16, 4096>::capacity(), 409);
+		assert_eq!(Branch::<[u8; 16], u32, 4096>::capacity(), 204);
+		assert_eq!(Branch::<u32, flex_page::U24, 4096>::capacity(), 584);
 	}
 
 	#[test]
@@ -150,4 +160,18 @@ mod tests {
 	}
 }
 
+#[test]
+fn test_name() {
+	let mut branch = Branch::<u64, u16, 4096>::create_root(2, 0, 1);
+	branch.insert(1, (3, 2));
+	branch.insert(2, (4, 3));
+	// branch.insert(2, (3, 4));
+	// branch.insert(3, (5, 6));
+	println!("Original : {:?}", branch);
 
+	let a = branch.split_at_mid();
+	println!("{:?}", a.1);
+	println!("{:?}", branch);
+	println!("{:?}", a.0);
+}
+// Original : Branch { keys: [0, 1], childs: [0, 1, 2] }

@@ -14,23 +14,20 @@ pub enum SetOption {
 pub struct Leaf<K, V, N, const SIZE: usize> {
 	pub next: N,
 	pub prev: N,
-	pub entries: Vec<(K, V)>,
+	entries: Vec<(K, V)>,
 }
 
 impl<K: Key, V: Key, P: PageNo, const SIZE: usize> Leaf<K, V, P, SIZE> {
 	pub fn capacity() -> usize {
 		(SIZE - (1 + P::SIZE * 2 + 2)) / (K::SIZE + V::SIZE)
 	}
+
 	pub fn new() -> Self {
 		Self { next: P::new(0), prev: P::new(0), entries: Vec::with_capacity(Self::capacity()) }
 	}
 
 	pub fn is_full(&self) -> bool {
 		self.entries.len() >= Self::capacity()
-	}
-
-	fn binary_search_by(&self, key: &K) -> Result<usize, usize> {
-		self.entries.binary_search_by(|(k, _)| k.partial_cmp(key).expect("Key can't be `NaN`"))
 	}
 
 	pub fn insert(&mut self, key: K, value: V, opt: SetOption) -> Option<V> {
@@ -89,6 +86,16 @@ impl<K: Key, V: Key, P: PageNo, const SIZE: usize> Leaf<K, V, P, SIZE> {
 			this.entries.push((key, value));
 		}
 		this
+	}
+
+	fn binary_search_by(&self, key: &K) -> Result<usize, usize> {
+		self.entries.binary_search_by(|(k, _)| k.partial_cmp(key).expect("Key can't be `NaN`"))
+	}
+
+	#[cfg(test)]
+	/// Get a reference to the leaf's entries.
+	pub fn entries(&self) -> &[(K, V)] {
+		self.entries.as_ref()
 	}
 }
 

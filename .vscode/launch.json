@@ -1,0 +1,120 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug executable 'btree'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=btree",
+                    "--package=btree"
+                ],
+                "filter": {
+                    "name": "btree",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in executable 'btree'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bin=btree",
+                    "--package=btree"
+                ],
+                "filter": {
+                    "name": "btree",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in library 'flex-btree'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--lib",
+                    "--package=flex-btree"
+                ],
+                "filter": {
+                    "name": "flex-btree",
+                    "kind": "lib"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug integration test 'basic'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--test=basic",
+                    "--package=flex-btree"
+                ],
+                "filter": {
+                    "name": "basic",
+                    "kind": "test"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug executable 'trie'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=trie",
+                    "--package=trie"
+                ],
+                "filter": {
+                    "name": "trie",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in executable 'trie'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bin=trie",
+                    "--package=trie"
+                ],
+                "filter": {
+                    "name": "trie",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        }
+    ]
+}
