@@ -3,11 +3,10 @@ use flex_page::PageNo;
 
 use crate::entry::Key;
 
-
 #[derive(Debug)]
 pub struct Branch<K, N, const SIZE: usize> {
-	keys: Vec<K>,
-	childs: Vec<N>,
+	pub keys: Vec<K>,
+	pub childs: Vec<N>,
 }
 
 impl<K: Key, N: PageNo, const SIZE: usize> Branch<K, N, SIZE> {
@@ -50,7 +49,8 @@ impl<K: Key, N: PageNo, const SIZE: usize> Branch<K, N, SIZE> {
 			this.keys.push(K::from_bytes(&bytes.copy_to_bytes(K::SIZE)));
 		}
 		for _ in 0..keys_len + 1 {
-			this.childs.push(N::from_bytes(&bytes.copy_to_bytes(N::SIZE)));
+			this.childs
+				.push(N::from_bytes(&bytes.copy_to_bytes(N::SIZE)));
 		}
 		this
 	}
@@ -87,14 +87,9 @@ impl<K: Key, N: PageNo, const SIZE: usize> Branch<K, N, SIZE> {
 		(Self { keys, childs }, self.keys.pop().unwrap())
 	}
 
-	#[cfg(test)]
-	/// Get a reference to the branch's keys.
-	pub fn keys(&self) -> &[K] {
-		self.keys.as_ref()
-	}
 	/// Get a reference to the branch's childs.
-	pub fn childs(&self) -> &[N] {
-		self.childs.as_ref()
+	pub fn child_at(&self, i: usize) -> N {
+		self.childs[i]
 	}
 }
 

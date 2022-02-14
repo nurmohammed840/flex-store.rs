@@ -14,7 +14,7 @@ pub enum SetOption {
 pub struct Leaf<K, V, N, const SIZE: usize> {
 	pub next: N,
 	pub prev: N,
-	entries: Vec<(K, V)>,
+	pub entries: Vec<(K, V)>,
 }
 
 impl<K: Key, V: Key, P: PageNo, const SIZE: usize> Leaf<K, V, P, SIZE> {
@@ -23,7 +23,11 @@ impl<K: Key, V: Key, P: PageNo, const SIZE: usize> Leaf<K, V, P, SIZE> {
 	}
 
 	pub fn new() -> Self {
-		Self { next: P::new(0), prev: P::new(0), entries: Vec::with_capacity(Self::capacity()) }
+		Self {
+			next: P::new(0),
+			prev: P::new(0),
+			entries: Vec::with_capacity(Self::capacity()),
+		}
 	}
 
 	pub fn is_full(&self) -> bool {
@@ -89,13 +93,8 @@ impl<K: Key, V: Key, P: PageNo, const SIZE: usize> Leaf<K, V, P, SIZE> {
 	}
 
 	fn binary_search_by(&self, key: &K) -> Result<usize, usize> {
-		self.entries.binary_search_by(|(k, _)| k.partial_cmp(key).expect("Key can't be `NaN`"))
-	}
-
-	#[cfg(test)]
-	/// Get a reference to the leaf's entries.
-	pub fn entries(&self) -> &[(K, V)] {
-		self.entries.as_ref()
+		self.entries
+			.binary_search_by(|(k, _)| k.partial_cmp(key).expect("Key can't be `NaN`"))
 	}
 }
 
@@ -107,7 +106,10 @@ mod tests {
 	#[test]
 	fn check_capacity() {
 		assert_eq!(super::Leaf::<u64, u16, u16, 4096>::capacity(), 408);
-		assert_eq!(super::Leaf::<u32, u16, flex_page::U24, 4096>::capacity(), 681);
+		assert_eq!(
+			super::Leaf::<u32, u16, flex_page::U24, 4096>::capacity(),
+			681
+		);
 	}
 
 	#[test]

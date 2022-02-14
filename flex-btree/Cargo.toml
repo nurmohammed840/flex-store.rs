@@ -1,14 +1,12 @@
 [package]
 name = "flex-btree"
 version = "0.1.0"
-edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+edition = "2018"
 
 [dependencies]
-flex-page = "0.4"
-async-recursion = "1.0.0"
 bytes = "1"
+flex-page = "1"
+async-recursion = "1"
 
 [dev-dependencies]
 tokio = { version = "1", default-features = false, features = ["rt", "macros"] }

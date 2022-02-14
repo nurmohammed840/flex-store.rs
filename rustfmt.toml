@@ -1,7 +1,3 @@
 
 hard_tabs = true
 use_field_init_shorthand = true
-
-# heuristics
-
-use_small_heuristics = "Max"
