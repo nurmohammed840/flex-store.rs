@@ -1,17 +1,16 @@
 use bytes::{Buf, BufMut};
-use flex_page::PageNo;
 
 use crate::entry::Key;
 
-#[derive(Debug)]
-pub struct Branch<K, N, const SIZE: usize> {
+pub struct Branch<K, const SIZE: usize> {
 	pub keys: Vec<K>,
-	pub childs: Vec<N>,
+	pub childs: Vec<u16>,
 }
 
-impl<K: Key, N: PageNo, const SIZE: usize> Branch<K, N, SIZE> {
+impl<K: Key, const SIZE: usize> Branch<K, SIZE> {
 	pub fn capacity() -> usize {
-		(SIZE - (1 + 2)) / (K::SIZE + N::SIZE)
+		// BlockSize - (Node type (1) + childs len (2))
+		(SIZE - 3) / (K::SIZE + 2)
 	}
 
 	pub fn is_full(&self) -> bool {
@@ -34,7 +33,7 @@ impl<K: Key, N: PageNo, const SIZE: usize> Branch<K, N, SIZE> {
 		// because it's always the same as the `keys` length + 1.
 		view.put_u16_le(self.keys.len() as u16);
 		self.keys.iter().for_each(|k| view.put(&k.to_bytes()[..]));
-		self.childs.iter().for_each(|c| view.put(&c.to_bytes()[..]));
+		self.childs.iter().for_each(|&c| view.put_u16_le(c));
 		buf
 	}
 
@@ -42,15 +41,11 @@ impl<K: Key, N: PageNo, const SIZE: usize> Branch<K, N, SIZE> {
 		let keys_len = bytes.get_u16_le();
 		let mut this = Self::new();
 
-		this.keys.reserve(keys_len as usize);
-		this.childs.reserve((keys_len + 1) as usize);
-
 		for _ in 0..keys_len {
 			this.keys.push(K::from_bytes(&bytes.copy_to_bytes(K::SIZE)));
 		}
 		for _ in 0..keys_len + 1 {
-			this.childs
-				.push(N::from_bytes(&bytes.copy_to_bytes(N::SIZE)));
+			this.childs.push(bytes.get_u16_le());
 		}
 		this
 	}
@@ -58,7 +53,7 @@ impl<K: Key, N: PageNo, const SIZE: usize> Branch<K, N, SIZE> {
 	/// # Panic
 	/// Panic if `childs` is empty,
 	/// Make sure that `childs` has at least one element.
-	pub fn insert(&mut self, index: usize, (k, n): (K, N)) {
+	pub fn insert(&mut self, index: usize, (k, n): (K, u16)) {
 		self.keys.insert(index, k);
 		self.childs.insert(index + 1, n);
 	}
@@ -71,7 +66,7 @@ impl<K: Key, N: PageNo, const SIZE: usize> Branch<K, N, SIZE> {
 		i
 	}
 
-	pub fn create_root(key: K, left: N, right: N) -> Self {
+	pub fn create_root(key: K, left: u16, right: u16) -> Self {
 		let mut branch = Self::new();
 		branch.keys.push(key);
 		branch.childs.push(left);
@@ -88,7 +83,7 @@ impl<K: Key, N: PageNo, const SIZE: usize> Branch<K, N, SIZE> {
 	}
 
 	/// Get a reference to the branch's childs.
-	pub fn child_at(&self, i: usize) -> N {
+	pub fn child_at(&self, i: usize) -> u16 {
 		self.childs[i]
 	}
 }
@@ -96,17 +91,16 @@ impl<K: Key, N: PageNo, const SIZE: usize> Branch<K, N, SIZE> {
 #[cfg(test)]
 mod tests {
 	use super::*;
+	type Branch = super::Branch<u64, 4096>;
 
 	#[test]
 	fn check_capacity() {
-		assert_eq!(Branch::<u64, u16, 4096>::capacity(), 409);
-		assert_eq!(Branch::<[u8; 16], u32, 4096>::capacity(), 204);
-		assert_eq!(Branch::<u32, flex_page::U24, 4096>::capacity(), 584);
+		assert_eq!(Branch::capacity(), 409);
 	}
 
 	#[test]
 	fn lookup() {
-		let mut branch = Branch::<u64, u16, 4096>::new();
+		let mut branch = Branch::new();
 		branch.keys = [10, 20].to_vec();
 
 		assert_eq!(branch.lookup(0), 0);
@@ -119,13 +113,13 @@ mod tests {
 		assert_eq!(branch.lookup(100), 2);
 	}
 
-	fn test_byte_conversion(branch: &Branch<u64, u16, 4096>) {
+	fn test_byte_conversion(branch: &Branch) {
 		let bytes = branch.to_bytes();
 		let mut view = &bytes[..];
 
 		assert_eq!(view.get_u8(), 1); // Node type
 
-		let branch2 = Branch::<u64, u16, 4096>::from_bytes(view);
+		let branch2 = Branch::from_bytes(view);
 
 		assert_eq!(branch.keys, branch2.keys);
 		assert_eq!(branch.childs, branch2.childs);
@@ -133,7 +127,7 @@ mod tests {
 
 	#[test]
 	fn split_at_mid() {
-		let mut branch = Branch::<u64, u16, 4096>::create_root(0, 0, 1);
+		let mut branch = Branch::create_root(0, 0, 1);
 
 		for i in 1..408 {
 			branch.insert(i, (i as u64, i as u16 + 1));
@@ -154,19 +148,3 @@ mod tests {
 		assert_eq!(other.childs, (204..=408).collect::<Vec<_>>());
 	}
 }
-
-#[test]
-fn test_name() {
-	let mut branch = Branch::<u64, u16, 4096>::create_root(2, 0, 1);
-	branch.insert(1, (3, 2));
-	branch.insert(2, (4, 3));
-	// branch.insert(2, (3, 4));
-	// branch.insert(3, (5, 6));
-	println!("Original : {:?}", branch);
-
-	let a = branch.split_at_mid();
-	println!("{:?}", a.1);
-	println!("{:?}", branch);
-	println!("{:?}", a.0);
-}
-// Original : Branch { keys: [0, 1], childs: [0, 1, 2] }

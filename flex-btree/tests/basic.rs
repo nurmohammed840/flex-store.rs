@@ -1,24 +1,27 @@
-use std::fs::remove_file;
-use std::io::Result;
+use std::{fs::remove_file, io::Result};
 
-use flex_btree::{BTree, SetOption};
-use SetOption::*;
+// use flex_btree::SetOption;
+// use SetOption::*;
 
-async fn basic() -> Result<()> {
+type BTree = flex_btree::BTree<u64, u16, 64>;
+
+#[test]
+fn open_file() -> Result<()> {
+	let _ = remove_file("open_file");
 	{
-		let btree: BTree<u64, u64, u16, 64> = BTree::open("basic")?;
-		for i in 1..=5000 {
-			btree.set(i, 1, UpdateOrInsert).await.unwrap();
-		}
-		println!("{:#?}", btree.first_key_value().await?);
-		println!("{:#?}", btree.last_key_value().await?);
+		let _btree = BTree::open("open_file")?;
+		assert_eq!(
+			"The file is already opened.",
+			BTree::open("open_file").err().unwrap().to_string()
+		);
 	}
-	Ok(())
-}
-
-#[tokio::test]
-async fn test() -> Result<()> {
-	basic().await?;
-	remove_file("basic")?;
-	Ok(())
+	assert_eq!(
+		"Expected: MetaInfo { key_size: 8, value_size: 2, block_size: 64 }, but got: MetaInfo { key_size: 4, value_size: 4, block_size: 128 }",
+		flex_btree::BTree::<u32, u32, 128>::open("open_file")
+			.err()
+			.unwrap()
+			.to_string()
+	);
+	assert!(BTree::open("open_file").err().is_none());
+	remove_file("open_file")
 }

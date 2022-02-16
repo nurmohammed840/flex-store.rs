@@ -5,7 +5,7 @@ edition = "2018"
 
 [dependencies]
 bytes = "1"
-flex-page = "1"
+flex-page = "2"
 async-recursion = "1"
 
 [dev-dependencies]

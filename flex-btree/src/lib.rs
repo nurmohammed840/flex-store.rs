@@ -1,17 +1,16 @@
 mod branch;
 mod entry;
 mod leaf;
+mod meta;
 mod node;
 
-use bytes::{Buf, BufMut};
-use std::cell::Cell;
+use meta::{MetaInfo, Metadata};
 use std::fs::File;
-use std::io::Result;
+use std::io::{Error, ErrorKind, Result};
 use std::marker::PhantomData;
 use std::path::Path;
 
-use async_recursion::async_recursion;
-use flex_page::{PageNo, Pages};
+use flex_page::Pages;
 
 use branch::Branch;
 use entry::Key;
@@ -20,29 +19,14 @@ use node::Node;
 
 pub use leaf::SetOption;
 
-macro_rules! find_leaf {
-	[$data: expr, $body: expr] => {
-		match Node::from_bytes($data) {
-			Node::Branch(branch) => {
-				let f = $body;
-				f(branch).await
-			}
-			Node::Leaf(leaf) => Ok(leaf),
-		}
-	};
-}
-
-pub struct BTree<K, V, N: PageNo, const SIZE: usize> {
-	len: Cell<u32>,
-	root: Cell<N>,
-	pages: Pages<N, SIZE>,
+pub struct BTree<K, V, const SIZE: usize> {
+	len: u32,
+	root: u16,
+	pages: Pages<SIZE>,
 	_marker: PhantomData<(K, V)>,
 }
 
-unsafe impl<K, V, N: PageNo, const SIZE: usize> Send for BTree<K, V, N, SIZE> {}
-unsafe impl<K, V, N: PageNo, const SIZE: usize> Sync for BTree<K, V, N, SIZE> {}
-
-impl<K: Key, V: Key, N: PageNo, const SIZE: usize> BTree<K, V, N, SIZE> {
+impl<K: Key, V: Key, const SIZE: usize> BTree<K, V, SIZE> {
 	pub fn open(path: impl AsRef<Path>) -> Result<Self> {
 		let file = File::options()
 			.read(true)
@@ -51,118 +35,123 @@ impl<K: Key, V: Key, N: PageNo, const SIZE: usize> BTree<K, V, N, SIZE> {
 			.open(path)?;
 
 		let pages = Pages::open(file)?;
+		let metainfo = MetaInfo::new::<K, V, SIZE>();
 
-		let mut metadata = unsafe { &*pages.metadata() };
-		let root = metadata.get_u32_le();
-		let root = if root == 0 {
-			pages.alloc_sync(1)?
+		let mut len = 0;
+		let mut root = 1;
+		let mut raw_meta = [0; SIZE];
+
+		if pages.len() == 0 {
+			pages.alloc(2)?; // 1 for metadata, 1 for root node
+			raw_meta[..6].copy_from_slice(&metainfo.to_bytes());
 		} else {
-			N::new(root)
+			raw_meta = pages.read(0)?;
+			let info = MetaInfo::from_bytes(&raw_meta[..6]);
+			if info != metainfo {
+				return Err(Error::new(
+					ErrorKind::InvalidInput,
+					format!("Expected: {:?}, but got: {:?}", info, metainfo),
+				));
+			}
+			let metadata = Metadata::from_bytes(&raw_meta[6..]);
+			if metadata.is_opened == 1 {
+				return Err(Error::new(
+					ErrorKind::AddrInUse,
+					"The file is already opened",
+				));
+			}
+			len = metadata.len;
+			root = metadata.root;
 		};
-		let len = metadata.get_u32_le().into();
+		// `metadata.is_opened` flag.
+		raw_meta[6] = 1;
+		pages.write(0, raw_meta)?;
 		Ok(Self {
 			len,
+			root,
 			pages,
-			root: Cell::new(root),
 			_marker: PhantomData,
 		})
 	}
 
 	pub fn len(&self) -> u32 {
-		self.len.get()
+		self.len
 	}
 
-	pub async fn set(&self, key: K, value: V, opt: SetOption) -> Result<Option<V>> {
-		let root = self.root.get();
-		let _guard = self.pages.lock_api.write(root).await;
-
-		let result = self._set(root, key, value, opt).await?;
-		if let Some((mid, right)) = result.1 {
-			let root_branch = Branch::create_root(mid, root, right);
-			// TODO: reuse free pages
-			let new_root = self.pages.create(root_branch.to_bytes()).await?;
-			self.root.set(new_root);
-		};
-		if let None = result.0 {
-			self.len.set(self.len.get() + 1);
-		}
-		Ok(result.0)
-	}
-
-	pub async fn clear(&self) -> Result<()> {
-		let root = N::new(1);
-		let _guard = self.pages.lock_api.write(root).await;
-
-		self.root.set(root);
-		self.pages.write(root, [0; SIZE]).await
+	pub fn clear(&mut self) -> Result<()> {
+		self.len = 0;
+		self.root = 1;
+		self.pages.write(self.root as u64, [0; SIZE])
 	}
 
 	pub fn compact(&self) {
 		unimplemented!()
 	}
 
-	pub async fn get(&self, key: K) -> Result<Option<V>> {
-		let root = self.root.get();
-		let _guard = self.pages.lock_api.read(root).await;
-		Ok(self._find_leaf(root, key).await?.find(key))
+	pub fn set(&mut self, key: K, value: V, opt: SetOption) -> Result<Option<V>> {
+		let result = self._set(self.root, key, value, opt)?;
+		if let Some((mid, right)) = result.1 {
+			let root_branch = Branch::create_root(mid, self.root, right);
+			// TODO: reuse free pages
+			self.root = self.pages.create(root_branch.to_bytes())? as u16;
+		};
+		if let None = result.0 {
+			self.len += 1;
+		}
+		Ok(result.0)
 	}
 
-	pub async fn first_key_value(&self) -> Result<Option<(K, V)>>  {
-		let root = self.root.get();
-		let _guard = self.pages.lock_api.read(root).await;
-		Ok(self._first_leaf(root).await?.entries.first().copied())
+	pub fn head(&self) -> Result<Leaf<K, V, SIZE>> {
+		self._head(self.root)
+	}
+	pub fn tail(&self) -> Result<Leaf<K, V, SIZE>> {
+		self._tail(self.root)
+	}
+	pub fn get(&self, key: K) -> Result<Leaf<K, V, SIZE>> {
+		self._get(self.root, key)
 	}
 
-	pub async fn last_key_value(&self) -> Result<Option<(K, V)>>  {
-		let root = self.root.get();
-		let _guard = self.pages.lock_api.read(root).await;
-		Ok(self._last_leaf(root).await?.entries.last().copied())
+	fn _head(&self, num: u16) -> Result<Leaf<K, V, SIZE>> {
+		self._find_leaf(num, |b| self._head(*b.childs.first().unwrap()))
 	}
-
-	// get first leaf node, and return its first key
-	#[async_recursion]
-	async fn _first_leaf(&self, num: N) -> Result<Leaf<K, V, N, SIZE>> {
-		find_leaf!(self.pages.get(num).await?, |b: Branch<K, N, SIZE>| {
-			self._first_leaf(*b.childs.first().unwrap())
-		})
+	fn _tail(&self, num: u16) -> Result<Leaf<K, V, SIZE>> {
+		self._find_leaf(num, |b| self._tail(*b.childs.last().unwrap()))
 	}
-	#[async_recursion]
-	async fn _last_leaf(&self, num: N) -> Result<Leaf<K, V, N, SIZE>> {
-		find_leaf!(self.pages.get(num).await?, |b: Branch<K, N, SIZE>| {
-			self._last_leaf(*b.childs.last().unwrap())
-		})
+	fn _get(&self, num: u16, key: K) -> Result<Leaf<K, V, SIZE>> {
+		self._find_leaf(num, |b| self._get(b.child_at(b.lookup(key)), key))
 	}
-	#[async_recursion]
-	async fn _find_leaf(&self, num: N, key: K) -> Result<Leaf<K, V, N, SIZE>> {
-		find_leaf!(self.pages.get(num).await?, |b: Branch<K, N, SIZE>| {
-			self._find_leaf(b.child_at(b.lookup(key)), key)
-		})
+	fn _find_leaf<F>(&self, num: u16, f: F) -> Result<Leaf<K, V, SIZE>>
+	where
+		F: FnOnce(Branch<K, SIZE>) -> Result<Leaf<K, V, SIZE>>,
+	{
+		match Node::from_bytes(self.pages.read(num as u64)?) {
+			Node::Branch(branch) => f(branch),
+			Node::Leaf(leaf) => Ok(leaf),
+		}
 	}
-
-	#[async_recursion]
-	async fn _set(
+	fn _set(
 		&self,
-		num: N,
+		num: u16,
 		key: K,
 		value: V,
 		opt: SetOption,
-	) -> Result<(Option<V>, Option<(K, N)>)> {
+	) -> Result<(Option<V>, Option<(K, u16)>)> {
 		let ret;
 		let mut marge = None;
 
-		match Node::from_bytes(self.pages.get(num).await?) {
+		match Node::from_bytes(self.pages.read(num as u64)?) {
 			Node::Branch(mut branch) => {
 				let index = branch.lookup(key);
-				let (val, entry) = self._set(branch.child_at(index), key, value, opt).await?;
+				let (val, entry) = self._set(branch.child_at(index), key, value, opt)?;
 				ret = val;
 				if let Some(e) = entry {
 					branch.insert(index, e);
 					if branch.is_full() {
 						let (other, mid) = branch.split_at_mid();
 						// TODO: reuse free pages
-						marge = Some((mid, self.pages.create(other.to_bytes()).await?));
+						marge = Some((mid, self.pages.create(other.to_bytes())? as u16));
 					}
-					self.pages.write(num, branch.to_bytes()).await?;
+					self.pages.write(num as u64, branch.to_bytes())?;
 				}
 			}
 			Node::Leaf(mut leaf) => {
@@ -178,68 +167,71 @@ impl<K: Key, V: Key, N: PageNo, const SIZE: usize> BTree<K, V, N, SIZE> {
 					let (mut right, mid) = leaf.split_at_mid();
 					right.prev = num;
 					// TODO: reuse free pages
-					leaf.next = self.pages.create(right.to_bytes()).await?;
+					leaf.next = self.pages.create(right.to_bytes())? as u16;
 					marge = Some((mid, leaf.next));
 				}
-				self.pages.write(num, leaf.to_bytes()).await?;
+				self.pages.write(num as u64, leaf.to_bytes())?;
 			}
 		}
 		Ok((ret, marge))
 	}
 }
 
-impl<K, V, N: PageNo, const SIZE: usize> Drop for BTree<K, V, N, SIZE> {
+impl<K, V, const SIZE: usize> Drop for BTree<K, V, SIZE> {
 	fn drop(&mut self) {
-		let mut metadata = unsafe { self.pages.metadata() };
-		metadata.put_u32_le(self.root.get().as_u32());
-		metadata.put_u32_le(self.len.get());
+		let mut meta = self.pages.read(0).unwrap();
+		let metadata = Metadata {
+			is_opened: 0,
+			len: self.len,
+			root: self.root,
+		};
+		meta[6..13].copy_from_slice(&metadata.to_bytes());
+		self.pages.write(0, meta).unwrap();
 	}
 }
 
 // ============================================================================
 
 #[cfg(test)]
-mod format_tree {
-	#![allow(warnings)]
-	use super::Node::*;
+mod debug_tree {
 	use super::*;
-	type K = u64;
-	type V = u8;
-	type N = u8;
-	type Node = super::Node<K, V, N, 64>;
-	type BTree = super::BTree<K, V, N, 64>;
 	#[derive(Debug)]
-	enum Tree {
-		Branch { keys: Vec<K>, childs: Vec<Tree> },
-		Leaf(Vec<K>),
+	#[allow(dead_code)]
+	enum Tree<K, V> {
+		Branch {
+			keys: Vec<K>,
+			childs: Vec<Tree<K, V>>,
+		},
+		Leaf(Vec<(K, V)>),
 	}
-	#[async_recursion]
-	async fn build_tree(n: N, pages: &Pages<N, 64>) -> Tree {
-		match Node::from_bytes(pages.get(n).await.unwrap()) {
-			Branch(branch) => Tree::Branch {
-				keys: branch.keys.to_vec(),
-				childs: {
-					let mut childs = Vec::with_capacity(branch.childs.len());
-					for c in branch.childs {
-						childs.push(build_tree(c, pages).await);
-					}
-					childs
+	impl<K: Key, V: Key, const SIZE: usize> BTree<K, V, SIZE> {
+		fn build_tree(&self, num: u16) -> Tree<K, V> {
+			// Create the runtime
+			match Node::<K, V, SIZE>::from_bytes(self.pages.read(num as u64).unwrap()) {
+				Node::Leaf(leaf) => Tree::Leaf(leaf.entries),
+				Node::Branch(branch) => Tree::Branch {
+					keys: branch.keys,
+					childs: branch
+						.childs
+						.iter()
+						.map(|&n| self.build_tree(n.into()))
+						.collect(),
 				},
-			},
-			Leaf(leaf) => Tree::Leaf(leaf.entries.iter().map(|(k, _)| *k).collect()),
+			}
+		}
+		fn debug_tree(&self) -> Tree<K, V> {
+			self.build_tree(self.root)
 		}
 	}
-	#[tokio::test]
+
+	#[test]
 	#[ignore = "Only for debugging purpose"]
-	async fn debug_tree() -> Result<()> {
-		{
-			let tree = BTree::open("debug_tree").unwrap();
-			for i in 1..=500 {
-				tree.set(i, 0, SetOption::UpdateOrInsert).await.unwrap();
-			}
-			let contents = format!("{:?}", build_tree(tree.root.get(), &tree.pages).await);
-			std::fs::write("tree.txt", contents)?;
+	fn debug_tree() -> Result<()> {
+		let mut tree: BTree<u16, u16, 64> = BTree::open("debug_tree").unwrap();
+		for i in 1..=1000 {
+			tree.set(i, i, SetOption::UpdateOrInsert).unwrap();
 		}
+		std::fs::write("tree.txt", format!("{:#?}", tree.debug_tree()))?;
 		std::fs::remove_file("debug_tree")
 	}
 }
