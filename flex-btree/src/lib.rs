@@ -1,8 +1,11 @@
 mod branch;
+mod view;
 mod entry;
 mod leaf;
 mod meta;
 mod node;
+
+use flex_page::Pages;
 
 use meta::{MetaInfo, Metadata};
 use std::fs::File;
@@ -10,13 +13,12 @@ use std::io::{Error, ErrorKind, Result};
 use std::marker::PhantomData;
 use std::path::Path;
 
-use flex_page::Pages;
-
 use branch::Branch;
 use entry::Key;
 use leaf::Leaf;
 use node::Node;
 
+pub use view::View;
 pub use leaf::SetOption;
 
 pub struct BTree<K, V, const SIZE: usize> {
@@ -27,6 +29,7 @@ pub struct BTree<K, V, const SIZE: usize> {
 }
 
 impl<K: Key, V: Key, const SIZE: usize> BTree<K, V, SIZE> {
+	/// #### _Blocking_
 	pub fn open(path: impl AsRef<Path>) -> Result<Self> {
 		let file = File::options()
 			.read(true)
@@ -78,16 +81,19 @@ impl<K: Key, V: Key, const SIZE: usize> BTree<K, V, SIZE> {
 		self.len
 	}
 
+	/// #### _Blocking_
 	pub fn clear(&mut self) -> Result<()> {
 		self.len = 0;
 		self.root = 1;
 		self.pages.write(self.root as u64, [0; SIZE])
 	}
 
+	/// #### _Blocking_
 	pub fn compact(&self) {
 		unimplemented!()
 	}
 
+	/// #### _Blocking_
 	pub fn set(&mut self, key: K, value: V, opt: SetOption) -> Result<Option<V>> {
 		let result = self._set(self.root, key, value, opt)?;
 		if let Some((mid, right)) = result.1 {
@@ -101,31 +107,44 @@ impl<K: Key, V: Key, const SIZE: usize> BTree<K, V, SIZE> {
 		Ok(result.0)
 	}
 
-	pub fn head(&self) -> Result<Leaf<K, V, SIZE>> {
-		self._head(self.root)
-	}
-	pub fn tail(&self) -> Result<Leaf<K, V, SIZE>> {
-		self._tail(self.root)
-	}
-	pub fn get(&self, key: K) -> Result<Leaf<K, V, SIZE>> {
-		self._get(self.root, key)
+	/// #### _Blocking_
+	pub fn head(&self) -> Result<View<K, V, SIZE>> {
+		Ok(View {
+			pages: &self.pages,
+			leaf: self._head(self.root)?,
+		})
 	}
 
+	/// #### _Blocking_
+	pub fn tail(&self) -> Result<View<K, V, SIZE>> {
+		Ok(View {
+			pages: &self.pages,
+			leaf: self._tail(self.root)?,
+		})
+	}
+
+	/// #### _Blocking_
+	pub fn get(&self, key: K) -> Result<View<K, V, SIZE>> {
+		Ok(View {
+			pages: &self.pages,
+			leaf: self._get(self.root, key)?,
+		})
+	}
 	fn _head(&self, num: u16) -> Result<Leaf<K, V, SIZE>> {
-		self._find_leaf(num, |b| self._head(*b.childs.first().unwrap()))
+		match Node::from_bytes(self.pages.read(num as u64)?) {
+			Node::Branch(b) => self._head(*b.childs.first().unwrap()),
+			Node::Leaf(leaf) => Ok(leaf),
+		}
 	}
 	fn _tail(&self, num: u16) -> Result<Leaf<K, V, SIZE>> {
-		self._find_leaf(num, |b| self._tail(*b.childs.last().unwrap()))
+		match Node::from_bytes(self.pages.read(num as u64)?) {
+			Node::Branch(b) => self._tail(*b.childs.last().unwrap()),
+			Node::Leaf(leaf) => Ok(leaf),
+		}
 	}
 	fn _get(&self, num: u16, key: K) -> Result<Leaf<K, V, SIZE>> {
-		self._find_leaf(num, |b| self._get(b.child_at(b.lookup(key)), key))
-	}
-	fn _find_leaf<F>(&self, num: u16, f: F) -> Result<Leaf<K, V, SIZE>>
-	where
-		F: FnOnce(Branch<K, SIZE>) -> Result<Leaf<K, V, SIZE>>,
-	{
 		match Node::from_bytes(self.pages.read(num as u64)?) {
-			Node::Branch(branch) => f(branch),
+			Node::Branch(b) => self._get(b.child_at(b.lookup(key)), key),
 			Node::Leaf(leaf) => Ok(leaf),
 		}
 	}
@@ -155,11 +174,10 @@ impl<K: Key, V: Key, const SIZE: usize> BTree<K, V, SIZE> {
 				}
 			}
 			Node::Leaf(mut leaf) => {
-				let find_opt = matches!(opt, SetOption::FindOrInsert);
-				ret = leaf.insert(key, value, opt);
+				ret = leaf.insert(key, value, opt.clone());
 				// If `FindOrInsert` option is enable, And if the key is found, Return the value.
 				// So we don't need to write the page.
-				if find_opt && ret.is_some() {
+				if matches!(opt, SetOption::FindOrInsert) && ret.is_some() {
 					return Ok((ret, None));
 				}
 				// If the leaf is full, split it.

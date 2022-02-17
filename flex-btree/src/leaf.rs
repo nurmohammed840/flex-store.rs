@@ -1,10 +1,11 @@
-use std::{fmt, mem::replace};
+use std::mem::replace;
 
 use bytes::{Buf, BufMut};
 
 use crate::entry::Key;
 use SetOption::*;
 
+#[derive(Debug, Clone)]
 pub enum SetOption {
 	UpdateOrInsert,
 	FindOrInsert,
@@ -17,12 +18,12 @@ pub struct Leaf<K, V, const SIZE: usize> {
 }
 
 impl<K: Key, V: Key, const SIZE: usize> Leaf<K, V, SIZE> {
-	pub(crate) fn capacity() -> usize {
+	pub fn capacity() -> usize {
 		// BlockSize - (Node type (1) + next (2) + prev (2) + entries len (2))
 		(SIZE - 7) / (K::SIZE + V::SIZE)
 	}
 
-	pub(crate) fn new() -> Self {
+	pub fn new() -> Self {
 		Self {
 			next: 0,
 			prev: 0,
@@ -30,12 +31,12 @@ impl<K: Key, V: Key, const SIZE: usize> Leaf<K, V, SIZE> {
 		}
 	}
 
-	pub(crate) fn is_full(&self) -> bool {
+	pub fn is_full(&self) -> bool {
 		self.entries.len() >= Self::capacity()
 	}
 
-	pub(crate) fn insert(&mut self, key: K, value: V, opt: SetOption) -> Option<V> {
-		match self.binary_search_by(&key) {
+	pub fn insert(&mut self, key: K, value: V, opt: SetOption) -> Option<V> {
+		match self.binary_search_by_key(&key) {
 			Ok(i) => Some(match opt {
 				FindOrInsert => self.entries[i].1,
 				UpdateOrInsert => replace(&mut self.entries[i].1, value),
@@ -47,13 +48,8 @@ impl<K: Key, V: Key, const SIZE: usize> Leaf<K, V, SIZE> {
 		}
 	}
 
-	// pub(crate) fn _find(&self, key: K) -> Option<V> {
-	// 	let index = self.binary_search_by(&key).ok()?;
-	// 	Some(self.entries.get(index)?.1)
-	// }
-
 	/// This function splits `Self` at the middle and returns the right half.
-	pub(crate) fn split_at_mid(&mut self) -> (Self, K) {
+	pub fn split_at_mid(&mut self) -> (Self, K) {
 		let mut other = Self::new();
 		let mid_point = self.entries.len() / 2;
 		other.entries = self.entries.drain(mid_point..).collect();
@@ -61,7 +57,7 @@ impl<K: Key, V: Key, const SIZE: usize> Leaf<K, V, SIZE> {
 		(other, mid)
 	}
 
-	pub(crate) fn to_bytes(&self) -> [u8; SIZE] {
+	pub fn to_bytes(&self) -> [u8; SIZE] {
 		let mut buf = [0; SIZE];
 		let mut view = buf.as_mut();
 
@@ -77,7 +73,7 @@ impl<K: Key, V: Key, const SIZE: usize> Leaf<K, V, SIZE> {
 		buf
 	}
 
-	pub(crate) fn from_bytes(mut bytes: &[u8]) -> Self {
+	pub fn from_bytes(mut bytes: &[u8]) -> Self {
 		let mut this = Self::new();
 
 		this.next = bytes.get_u16_le();
@@ -92,15 +88,9 @@ impl<K: Key, V: Key, const SIZE: usize> Leaf<K, V, SIZE> {
 		this
 	}
 
-	pub(crate) fn binary_search_by(&self, key: &K) -> Result<usize, usize> {
+	pub fn binary_search_by_key(&self, key: &K) -> Result<usize, usize> {
 		self.entries
 			.binary_search_by(|(k, _)| k.partial_cmp(key).expect("Key can't be `NaN`"))
-	}
-}
-
-impl<K: fmt::Debug, V: fmt::Debug, const SIZE: usize> fmt::Debug for Leaf<K, V, SIZE> {
-	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		f.debug_list().entries(&self.entries).finish()
 	}
 }
 
@@ -129,11 +119,7 @@ mod tests {
 		assert_eq!(leaf.insert(1, 111, FindOrInsert), Some(11));
 		assert_eq!(leaf.insert(2, 222, FindOrInsert), Some(22));
 
-		// assert_eq!(leaf.find(3), Some(33));
-		// assert_eq!(leaf.find(4), Some(44));
-		// assert_eq!(leaf.find(99), None);
-
-		let values = leaf.entries.iter().map(|(_, v)| *v).collect::<Vec<_>>();
+		let values: Vec<_> = leaf.entries.iter().map(|(_, v)| *v).collect();
 		assert_eq!(values, [11, 22, 33, 44])
 	}
 
