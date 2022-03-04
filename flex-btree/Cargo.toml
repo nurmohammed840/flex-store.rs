@@ -5,8 +5,10 @@ edition = "2018"
 
 [dependencies]
 bytes = "1"
-flex-page = "2"
-async-recursion = "1"
+flex-page = "2.1"
+
+term-painter = "0.3.0"
+rustc-serialize = "0.3.24"
 
 [dev-dependencies]
 tokio = { version = "1", default-features = false, features = ["rt", "macros"] }

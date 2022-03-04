@@ -7,9 +7,16 @@ pub struct Branch<K, const SIZE: usize> {
 	pub childs: Vec<u16>,
 }
 
+pub enum DeleteOperation<K> {
+	UpdateIdx(K),
+	ReplaceIdx(K),
+	RemoveIdx,
+	Nothing,
+}
+
 impl<K: Key, const SIZE: usize> Branch<K, SIZE> {
 	pub fn capacity() -> usize {
-		// BlockSize - (Node type (1) + childs len (2))
+		// BlockSize - (Node type (1) + keys len (2))
 		(SIZE - 3) / (K::SIZE + 2)
 	}
 
@@ -37,15 +44,17 @@ impl<K: Key, const SIZE: usize> Branch<K, SIZE> {
 		buf
 	}
 
-	pub fn from_bytes(mut bytes: &[u8]) -> Self {
-		let keys_len = bytes.get_u16_le();
-		let mut this = Self::new();
+	pub fn from_bytes(bytes: [u8; SIZE]) -> Self {
+		let mut view = bytes.as_ref();
 
+		let _ = view.get_u8(); // Node Type
+		let keys_len = view.get_u16_le();
+		let mut this = Self::new();
 		for _ in 0..keys_len {
-			this.keys.push(K::from_bytes(&bytes.copy_to_bytes(K::SIZE)));
+			this.keys.push(K::from_bytes(&view.copy_to_bytes(K::SIZE)));
 		}
 		for _ in 0..keys_len + 1 {
-			this.childs.push(bytes.get_u16_le());
+			this.childs.push(view.get_u16_le());
 		}
 		this
 	}
@@ -58,12 +67,33 @@ impl<K: Key, const SIZE: usize> Branch<K, SIZE> {
 		self.childs.insert(index + 1, n);
 	}
 
-	pub fn lookup(&self, key: K) -> usize {
-		let mut i = 0;
-		while i < self.keys.len() && self.keys[i] <= key {
-			i += 1;
+	pub fn get_key_at(&mut self, lookup_idx: usize) -> &mut K {
+		if lookup_idx == 0 {
+			&mut self.keys[0]
+		} else {
+			&mut self.keys[lookup_idx - 1]
 		}
-		i
+	}
+	pub fn remove_key_at(&mut self, lookup_idx: usize) -> K  {
+		if lookup_idx == 0 {
+			self.keys.remove(0)
+		} else {
+			self.keys.remove(lookup_idx - 1)
+		}
+	}
+
+	pub fn lookup(&self, key: &K) -> usize {
+		match self.binary_search(key) {
+			Ok(i) => i + 1,
+			Err(i) => i,
+		}
+	}
+
+	pub fn binary_search(&self, key: &K) -> Result<usize, usize> {
+		self.keys.binary_search_by(|k| {
+			println!("{:?}", k);
+			k.partial_cmp(key).expect("Key can't be `NaN`")
+		})
 	}
 
 	pub fn create_root(key: K, left: u16, right: u16) -> Self {
@@ -82,15 +112,20 @@ impl<K: Key, const SIZE: usize> Branch<K, SIZE> {
 		(Self { keys, childs }, self.keys.pop().unwrap())
 	}
 
-	/// Get a reference to the branch's childs.
-	pub fn child_at(&self, i: usize) -> u16 {
-		self.childs[i]
+	pub fn child_at(&self, lookup_idx: usize) -> u16 {
+		self.childs[lookup_idx]
+	}
+
+	pub fn sibings_at(&self, lookup_idx: usize) -> (Option<u16>, Option<u16>) {
+		(
+			self.childs.get(lookup_idx - 1).cloned(),
+			self.childs.get(lookup_idx + 1).cloned(),
+		)
 	}
 }
 
 #[cfg(test)]
 mod tests {
-	use super::*;
 	type Branch = super::Branch<u64, 4096>;
 
 	#[test]
@@ -103,23 +138,21 @@ mod tests {
 		let mut branch = Branch::new();
 		branch.keys = [10, 20].to_vec();
 
-		assert_eq!(branch.lookup(0), 0);
-		assert_eq!(branch.lookup(9), 0);
+		assert_eq!(branch.lookup(&0), 0);
+		assert_eq!(branch.lookup(&9), 0);
 
-		assert_eq!(branch.lookup(10), 1);
-		assert_eq!(branch.lookup(19), 1);
+		assert_eq!(branch.lookup(&10), 1);
+		assert_eq!(branch.lookup(&19), 1);
 
-		assert_eq!(branch.lookup(20), 2);
-		assert_eq!(branch.lookup(100), 2);
+		assert_eq!(branch.lookup(&20), 2);
+		assert_eq!(branch.lookup(&100), 2);
 	}
 
 	fn test_byte_conversion(branch: &Branch) {
 		let bytes = branch.to_bytes();
-		let mut view = &bytes[..];
+		assert_eq!(bytes[0], 1); // Node type
 
-		assert_eq!(view.get_u8(), 1); // Node type
-
-		let branch2 = Branch::from_bytes(view);
+		let branch2 = Branch::from_bytes(bytes);
 
 		assert_eq!(branch.keys, branch2.keys);
 		assert_eq!(branch.childs, branch2.childs);

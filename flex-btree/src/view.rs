@@ -1,6 +1,5 @@
-use std::{fmt, ops::Deref};
-
 use super::*;
+use std::{fmt, ops::Deref};
 
 pub struct View<'a, K, V, const SIZE: usize> {
 	pub(super) pages: &'a Pages<SIZE>,
@@ -19,7 +18,7 @@ impl<K: Key, V: Key, const SIZE: usize> View<'_, K, V, SIZE> {
 	}
 
 	pub fn find_idx(&self, key: &K) -> Option<usize> {
-		self.leaf.binary_search_by_key(key).ok()
+		self.leaf.binary_search(key).ok()
 	}
 
 	pub fn find(&self, key: &K) -> Option<&(K, V)> {
@@ -30,10 +29,7 @@ impl<K: Key, V: Key, const SIZE: usize> View<'_, K, V, SIZE> {
 		if num == 0 {
 			return Ok(false);
 		}
-		self.leaf = match Node::from_bytes(self.pages.read(num)?) {
-			Node::Leaf(leaf) => leaf,
-			Node::Branch(_) => unreachable!(),
-		};
+		self.leaf = Leaf::from_bytes(self.pages.read(num)?);
 		Ok(true)
 	}
 }

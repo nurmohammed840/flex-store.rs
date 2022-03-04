@@ -3,7 +3,7 @@ use std::{fs::remove_file, io::Result};
 // use flex_btree::SetOption;
 // use SetOption::*;
 
-type BTree = flex_btree::BTree<u64, u16, 64>;
+type BTree = flex_btree::BPlusTree<u64, u16, 64>;
 
 #[test]
 fn open_file() -> Result<()> {
@@ -17,7 +17,7 @@ fn open_file() -> Result<()> {
 	}
 	assert_eq!(
 		"Expected: MetaInfo { key_size: 8, value_size: 2, block_size: 64 }, but got: MetaInfo { key_size: 4, value_size: 4, block_size: 128 }",
-		flex_btree::BTree::<u32, u32, 128>::open("open_file")
+		flex_btree::BPlusTree::<u32, u32, 128>::open("open_file")
 			.err()
 			.unwrap()
 			.to_string()

@@ -23,6 +23,10 @@ impl<K: Key, V: Key, const SIZE: usize> Leaf<K, V, SIZE> {
 		(SIZE - 7) / (K::SIZE + V::SIZE)
 	}
 
+	pub fn is_half_full(&self) -> bool {
+		self.entries.len() > (Self::capacity() / 2)
+	}
+
 	pub fn new() -> Self {
 		Self {
 			next: 0,
@@ -36,7 +40,7 @@ impl<K: Key, V: Key, const SIZE: usize> Leaf<K, V, SIZE> {
 	}
 
 	pub fn insert(&mut self, key: K, value: V, opt: SetOption) -> Option<V> {
-		match self.binary_search_by_key(&key) {
+		match self.binary_search(&key) {
 			Ok(i) => Some(match opt {
 				FindOrInsert => self.entries[i].1,
 				UpdateOrInsert => replace(&mut self.entries[i].1, value),
@@ -73,22 +77,24 @@ impl<K: Key, V: Key, const SIZE: usize> Leaf<K, V, SIZE> {
 		buf
 	}
 
-	pub fn from_bytes(mut bytes: &[u8]) -> Self {
+	pub fn from_bytes(bytes: [u8; SIZE]) -> Self {
 		let mut this = Self::new();
+		let mut view = bytes.as_ref();
 
-		this.next = bytes.get_u16_le();
-		this.prev = bytes.get_u16_le();
-		let len = bytes.get_u16_le();
+		let _ = view.get_u8(); // Node Type
+		this.next = view.get_u16_le();
+		this.prev = view.get_u16_le();
+		let len = view.get_u16_le();
 
 		for _ in 0..len {
-			let key = K::from_bytes(&bytes.copy_to_bytes(K::SIZE));
-			let value = V::from_bytes(&bytes.copy_to_bytes(V::SIZE));
+			let key = K::from_bytes(&view.copy_to_bytes(K::SIZE));
+			let value = V::from_bytes(&view.copy_to_bytes(V::SIZE));
 			this.entries.push((key, value));
 		}
 		this
 	}
 
-	pub fn binary_search_by_key(&self, key: &K) -> Result<usize, usize> {
+	pub fn binary_search(&self, key: &K) -> Result<usize, usize> {
 		self.entries
 			.binary_search_by(|(k, _)| k.partial_cmp(key).expect("Key can't be `NaN`"))
 	}
@@ -132,10 +138,9 @@ mod tests {
 		leaf.entries.push((4, 4));
 
 		let bytes = leaf.to_bytes();
-		let mut view = &bytes[..];
-		assert_eq!(view.get_u8(), 0); // Node type
+		assert_eq!(bytes[0], 0); // Node type
 
-		let leaf2 = Leaf::from_bytes(view);
+		let leaf2 = Leaf::from_bytes(bytes);
 		assert_eq!(leaf2.next, 1);
 		assert_eq!(leaf2.prev, 2);
 		assert_eq!(leaf.entries[..], leaf2.entries[..]);
