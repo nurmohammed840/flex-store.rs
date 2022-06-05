@@ -1,8 +1,0 @@
-[package]
-name = "btree"
-version = "0.1.0"
-edition = "2021"
-
-[dependencies]
-flex-btree = { path = "../../flex-btree" }
-tokio = { version = "1", features = ["full"] }

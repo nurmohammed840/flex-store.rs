@@ -1,0 +1,7 @@
+[package]
+name = "flex-bptree"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+flex-page = "2.1"

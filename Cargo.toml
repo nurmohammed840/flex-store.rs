@@ -1,14 +1,7 @@
 [workspace]
 
 members = [
-    #"banchmarks/*",
-    
-    "flex-btree",
-    
-    #"flex-tools",
-    # "utils",
-    # "flex-trie",
-    # "flex-tools",
+    "flex-bptree"
     # "flex-btree",
     # "flex-value",
     # "flex-linear-hash",
