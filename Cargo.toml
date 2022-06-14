@@ -1,7 +1,8 @@
 [workspace]
 
 members = [
-    "flex-bptree"
+    "flex-range-idx",
+    # "flex-bptree",
     # "flex-btree",
     # "flex-value",
     # "flex-linear-hash",
