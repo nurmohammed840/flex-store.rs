@@ -1,0 +1,8 @@
+[package]
+name = "flex-page-manager"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+flex-page = { path = "../flex-page" }
+bin-layout = "5.1"

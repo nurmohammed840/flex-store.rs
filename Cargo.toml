@@ -1,7 +1,8 @@
 [workspace]
 
 members = [
-    "flex-range-idx",
+    "flex-page-manager",
+    # "flex-range-idx",
     # "flex-bptree",
     # "flex-btree",
     # "flex-value",
